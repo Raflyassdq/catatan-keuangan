@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>Catatan Keuangan Pribadi</title>
+  
+  <!-- PWA & Mobile Meta Tags -->
+  <meta name="description" content="Aplikasi pencatatan keuangan pribadi cepat terhubung langsung ke Google Sheets">
+  <meta name="theme-color" content="#FAFAF7">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
+  
+  <!-- iOS Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Keuangan">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Toast Notification Wrapper -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- App Container -->
+  <div class="app-container">
+
+    <!-- Top App Bar -->
+    <header class="top-bar">
+      <div class="brand-wrapper">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="20" height="14" x="2" y="5" rx="2"/>
+            <line x1="2" x2="22" y1="10" y2="10"/>
+          </svg>
+        </div>
+        <h1 class="brand-title">Keuangan</h1>
+      </div>
+
+      <button id="btn-open-settings" class="sync-status" aria-label="Buka Pengaturan Koneksi">
+        <span id="sync-indicator" class="sync-dot"></span>
+        <span id="sync-text">Terkoneksi</span>
+      </button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main>
+      
+      <!-- ================= VIEW 1: DASHBOARD ================= -->
+      <section id="view-dashboard" class="app-view">
+        
+        <!-- Summary Cards -->
+        <div class="summary-container">
+          <div class="net-balance-card">
+            <div class="card-label">Saldo Bersih</div>
+            <div id="summary-net-balance" class="net-balance-amount">Rp 0</div>
+            <div id="summary-period-text" class="period-indicator">Periode: Bulan Ini</div>
+          </div>
+
+          <div class="flow-cards-grid">
+            <div class="flow-card income">
+              <div class="flow-card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m7 15 5 5 5-5"/>
+                  <path d="m7 9 5-5 5 5"/>
+                </svg>
+                <span>Pemasukan</span>
+              </div>
+              <div id="summary-total-income" class="flow-amount">Rp 0</div>
+            </div>
+
+            <div class="flow-card expense">
+              <div class="flow-card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 5v14"/>
+                  <path d="m19 12-7 7-7-7"/>
+                </svg>
+                <span>Pengeluaran</span>
+              </div>
+              <div id="summary-total-expense" class="flow-amount">Rp 0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Periode Bar -->
+        <div class="filter-bar" role="tablist" aria-label="Pilihan rentang waktu">
+          <button class="filter-pill active" data-period="this-month" role="tab" aria-selected="true">Bulan Ini</button>
+          <button class="filter-pill" data-period="this-week" role="tab" aria-selected="false">Minggu Ini</button>
+          <button class="filter-pill" data-period="today" role="tab" aria-selected="false">Hari Ini</button>
+          <button class="filter-pill" data-period="all" role="tab" aria-selected="false">Semua</button>
+        </div>
+
+        <!-- Chart Section: Donut Pengeluaran -->
+        <div class="section-block">
+          <div class="section-header">
+            <h2 class="section-title">Kategori Pengeluaran</h2>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="chart-category-donut" aria-label="Grafik persentase pengeluaran per kategori"></canvas>
+            <div id="chart-donut-empty" class="state-box" style="display: none; width: 100%;">
+              <div class="state-title">Belum ada pengeluaran</div>
+              <p class="state-desc">Belum ada data pengeluaran pada periode yang dipilih.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart Section: Pemasukan vs Pengeluaran -->
+        <div class="section-block">
+          <div class="section-header">
+            <h2 class="section-title">Arus Kas Masuk vs Keluar</h2>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="chart-comparison-bar" aria-label="Grafik perbandingan pemasukan dan pengeluaran"></canvas>
+            <div id="chart-bar-empty" class="state-box" style="display: none; width: 100%;">
+              <div class="state-title">Belum ada data</div>
+              <p class="state-desc">Tambahkan transaksi pertama Anda untuk melihat grafik.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Ringkasan Insight -->
+        <div class="section-block">
+          <div class="section-header">
+            <h2 class="section-title">Sorotan & Insight</h2>
+          </div>
+          <div class="insights-grid">
+            <div class="insight-item">
+              <div class="insight-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              </div>
+              <div class="insight-body">
+                <div class="insight-title">Pengeluaran Terbesar</div>
+                <div id="insight-top-expense" class="insight-value">-</div>
+              </div>
+            </div>
+
+            <div class="insight-item">
+              <div class="insight-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div class="insight-body">
+                <div class="insight-title">Rata-rata Pengeluaran Harian</div>
+                <div id="insight-daily-average" class="insight-value">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ================= VIEW 2: RIWAYAT TRANSAKSI ================= -->
+      <section id="view-history" class="app-view" style="display: none;">
+        
+        <!-- Search & Filter Controls -->
+        <div class="search-box-wrapper">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" x2="16.65" y1="21" y2="16.65"/>
+          </svg>
+          <input type="search" id="input-search" class="search-input" placeholder="Cari catatan atau kategori..." aria-label="Cari transaksi">
+        </div>
+
+        <div class="filter-bar" role="tablist" aria-label="Filter jenis transaksi">
+          <button class="filter-pill active" data-history-type="all" role="tab">Semua</button>
+          <button class="filter-pill" data-history-type="Pengeluaran" role="tab">Pengeluaran</button>
+          <button class="filter-pill" data-history-type="Pemasukan" role="tab">Pemasukan</button>
+        </div>
+
+        <!-- Transactions Container -->
+        <div id="transactions-container" class="transactions-list">
+          <!-- Item list dinamis di-render via app.js -->
+        </div>
+
+        <!-- State Box: Loading, Empty, Error -->
+        <div id="history-state-box" class="state-box" style="display: none;">
+          <div class="state-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+          <div id="history-state-title" class="state-title">Belum Ada Transaksi</div>
+          <p id="history-state-desc" class="state-desc">Tekan tombol (+) di bawah untuk mencatat transaksi baru.</p>
+          <button id="btn-retry-fetch" class="btn-retry" style="display: none;">Muat Ulang</button>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav" aria-label="Navigasi Utama">
+      <button id="nav-tab-dashboard" class="nav-item active" aria-label="Tab Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="7" height="9" x="3" y="3" rx="1"/>
+          <rect width="7" height="5" x="14" y="3" rx="1"/>
+          <rect width="7" height="9" x="14" y="12" rx="1"/>
+          <rect width="7" height="5" x="3" y="16" rx="1"/>
+        </svg>
+        <span>Ringkasan</span>
+      </button>
+
+      <button id="nav-btn-add-quick" class="nav-btn-add" aria-label="Tambah Transaksi Cepat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" x2="12" y1="5" y2="19"/>
+          <line x1="5" x2="19" y1="12" y2="12"/>
+        </svg>
+      </button>
+
+      <button id="nav-tab-history" class="nav-item" aria-label="Tab Riwayat Transaksi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 8v4l3 3"/>
+          <circle cx="12" cy="12" r="9"/>
+        </svg>
+        <span>Riwayat</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- ================= MODAL: INPUT / EDIT TRANSAKSI ================= -->
+  <div id="modal-transaction" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-tx-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-tx-title" class="modal-title">Tambah Transaksi</h2>
+        <button id="btn-close-tx-modal" class="modal-close-btn" aria-label="Tutup Formulir">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-transaction">
+        <!-- Toggle Jenis Transaksi -->
+        <div class="type-toggle-wrapper" role="radiogroup" aria-label="Jenis Transaksi">
+          <button type="button" id="toggle-type-expense" class="type-toggle-btn active expense">Pengeluaran</button>
+          <button type="button" id="toggle-type-income" class="type-toggle-btn income">Pemasukan</button>
+        </div>
+
+        <!-- Input Nominal -->
+        <div class="form-group">
+          <label for="input-nominal" class="form-label">Nominal (Rupiah)</label>
+          <div class="nominal-input-wrapper">
+            <span class="nominal-prefix" aria-hidden="true">Rp</span>
+            <input type="text" id="input-nominal" class="nominal-input" inputmode="numeric" placeholder="0" required autocomplete="off">
+          </div>
+        </div>
+
+        <!-- Pilihan Kategori -->
+        <div class="form-group">
+          <label for="select-category" class="form-label">Kategori</label>
+          <select id="select-category" class="form-select" required>
+            <!-- Diisi otomatis berdasarkan jenis -->
+          </select>
+        </div>
+
+        <!-- Field Sumber (hanya muncul saat jenis Pemasukan) -->
+        <div id="group-source" class="form-group" style="display: none;">
+          <label for="input-source" class="form-label">Sumber Dana</label>
+          <input type="text" id="input-source" class="form-input" placeholder="Contoh: Rekening BCA, Kantor, dll.">
+        </div>
+
+        <!-- Input Tanggal -->
+        <div class="form-group">
+          <label for="input-date" class="form-label">Tanggal</label>
+          <input type="date" id="input-date" class="form-input" required>
+        </div>
+
+        <!-- Input Catatan Opsional -->
+        <div class="form-group">
+          <label for="input-note" class="form-label">Catatan (Opsional)</label>
+          <input type="text" id="input-note" class="form-input" placeholder="Catatan singkat...">
+        </div>
+
+        <!-- Tombol Simpan -->
+        <button type="submit" id="btn-submit-tx" class="btn-submit">
+          <span>Simpan Transaksi</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: DETAIL & AKSI ================= -->
+  <div id="modal-detail" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-detail-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-detail-title" class="modal-title">Detail Transaksi</h2>
+        <button id="btn-close-detail-modal" class="modal-close-btn" aria-label="Tutup Detail">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="detail-body">
+        <div class="detail-row">
+          <span class="detail-row-label">Jenis</span>
+          <span id="detail-type" class="detail-row-value">-</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-row-label">Nominal</span>
+          <span id="detail-amount" class="detail-row-value">-</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-row-label">Kategori</span>
+          <span id="detail-category" class="detail-row-value">-</span>
+        </div>
+        <div id="detail-row-source" class="detail-row" style="display: none;">
+          <span class="detail-row-label">Sumber</span>
+          <span id="detail-source" class="detail-row-value">-</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-row-label">Tanggal</span>
+          <span id="detail-date" class="detail-row-value">-</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-row-label">Catatan</span>
+          <span id="detail-note" class="detail-row-value">-</span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="btn-edit-from-detail" class="btn-action-edit">Edit</button>
+        <button type="button" id="btn-delete-from-detail" class="btn-action-delete">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: KONFIRMASI HAPUS ================= -->
+  <div id="modal-confirm-delete" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-del-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-del-title" class="modal-title">Hapus Transaksi</h2>
+        <button id="btn-close-del-modal" class="modal-close-btn" aria-label="Batal Hapus">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <p style="margin-bottom: 20px; color: var(--color-text-muted);">
+        Apakah Anda yakin ingin menghapus transaksi ini dari Google Sheets? Tindakan ini tidak dapat dibatalkan.
+      </p>
+
+      <div class="modal-actions">
+        <button type="button" id="btn-cancel-delete" class="btn-action-edit" style="border-color: var(--color-border); color: var(--color-text-main);">Batal</button>
+        <button type="button" id="btn-confirm-delete" class="btn-action-delete">Ya, Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: PENGATURAN KONEKSI ================= -->
+  <div id="modal-settings" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-settings-title" class="modal-title">Pengaturan Koneksi</h2>
+        <button id="btn-close-settings-modal" class="modal-close-btn" aria-label="Tutup Pengaturan">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-settings">
+        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 16px;">
+          Masukkan Web App URL dari Google Apps Script untuk menghubungkan aplikasi ke spreadsheet milik Anda.
+        </p>
+
+        <div class="form-group">
+          <label for="settings-script-url" class="form-label">Google Apps Script Web App URL</label>
+          <input type="url" id="settings-script-url" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" required>
+        </div>
+
+        <div class="form-group">
+          <label for="settings-secret-token" class="form-label">Token Rahasia</label>
+          <input type="text" id="settings-secret-token" class="form-input" value="SECRET_KEUANGAN_2026" required>
+        </div>
+
+        <button type="submit" class="btn-submit">
+          <span>Simpan & Tes Koneksi</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Core Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
