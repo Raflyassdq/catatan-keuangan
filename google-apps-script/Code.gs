@@ -223,13 +223,24 @@ function readSheetRows(sheet, type) {
     if (!rawAmount && rawAmount !== 0) continue;
 
     let formattedDate = "";
-    if (rawDate instanceof Date) {
-      const d = ("0" + rawDate.getDate()).slice(-2);
-      const m = ("0" + (rawDate.getMonth() + 1)).slice(-2);
-      const y = rawDate.getFullYear();
-      formattedDate = `${d}/${m}/${y}`;
+    if (Object.prototype.toString.call(rawDate) === "[object Date]" || rawDate instanceof Date) {
+      const d = new Date(rawDate);
+      const dd = ("0" + d.getDate()).slice(-2);
+      const mm = ("0" + (d.getMonth() + 1)).slice(-2);
+      const yyyy = d.getFullYear();
+      formattedDate = `${dd}/${mm}/${yyyy}`;
     } else {
-      formattedDate = String(rawDate || "");
+      const str = String(rawDate || "").trim();
+      const parsed = Date.parse(str);
+      if (!isNaN(parsed) && str.length > 10 && !str.includes("/")) {
+        const d = new Date(parsed);
+        const dd = ("0" + d.getDate()).slice(-2);
+        const mm = ("0" + (d.getMonth() + 1)).slice(-2);
+        const yyyy = d.getFullYear();
+        formattedDate = `${dd}/${mm}/${yyyy}`;
+      } else {
+        formattedDate = str;
+      }
     }
 
     if (type === "Pemasukan") {

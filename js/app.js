@@ -131,16 +131,39 @@
   }
 
   /**
-   * Parse string DD/MM/YYYY ke Date Object
+   * Parse fleksibel dari string atau Date object
    */
   function parseSheetDate(strDate) {
     if (!strDate) return new Date();
-    const parts = strDate.split("/");
+    if (strDate instanceof Date) return strDate;
+    const str = String(strDate).trim();
+
+    // Jika format DD/MM/YYYY
+    const parts = str.split("/");
     if (parts.length === 3) {
-      return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      const day = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const year = Number(parts[2]);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return new Date(year, month, day);
+      }
     }
-    const d = new Date(strDate);
+
+    // Format standar atau ISO
+    const d = new Date(str);
     return isNaN(d.getTime()) ? new Date() : d;
+  }
+
+  /**
+   * Format tampilan tanggal yang rapi dan elegan (contoh: "16 Nov 2026")
+   */
+  function formatDisplayDate(dateInput) {
+    const d = parseSheetDate(dateInput);
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+    const day = ("0" + d.getDate()).slice(-2);
+    const month = months[d.getMonth()] || "";
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
   }
 
   /**
@@ -578,7 +601,7 @@
           <div class="transaction-details">
             <span class="transaction-category">${item.category}</span>
             <div class="transaction-meta">
-              <span>${item.date}</span>
+              <span>${formatDisplayDate(item.date)}</span>
               ${item.note ? `<span>• ${item.note}</span>` : ""}
             </div>
           </div>
@@ -611,7 +634,7 @@
     DOM.detailType.textContent = item.type;
     DOM.detailAmount.textContent = formatRupiah(item.amount);
     DOM.detailCategory.textContent = item.category;
-    DOM.detailDate.textContent = item.date;
+    DOM.detailDate.textContent = formatDisplayDate(item.date);
     DOM.detailNote.textContent = item.note || "-";
 
     if (item.type === "Pemasukan" && item.source) {
