@@ -26,7 +26,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 
@@ -63,7 +63,7 @@
         <!-- Summary Cards -->
         <div class="summary-container">
           <div class="net-balance-card">
-            <div class="card-label">Saldo Bersih</div>
+            <div class="card-label">Saldo Bersih (Seluruh Dompet)</div>
             <div id="summary-net-balance" class="net-balance-amount">Rp 0</div>
             <div id="summary-period-text" class="period-indicator">Periode: Bulan Ini</div>
           </div>
@@ -90,6 +90,19 @@
               </div>
               <div id="summary-total-expense" class="flow-amount">Rp 0</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Section: Carousel Dompet & Sumber Dana -->
+        <div class="wallets-section">
+          <div class="wallets-section-header">
+            <h2 class="wallets-section-title">Dompet & Sumber Uang</h2>
+            <button id="btn-trigger-add-wallet" class="btn-add-wallet-trigger" type="button" aria-label="Tambah Dompet Baru">
+              <span>+ Dompet</span>
+            </button>
+          </div>
+          <div id="wallets-carousel" class="wallets-carousel" aria-label="Daftar Saldo Dompet">
+            <!-- Di-render dinamis oleh app.js -->
           </div>
         </div>
 
@@ -173,13 +186,14 @@
             <circle cx="11" cy="11" r="8"/>
             <line x1="21" x2="16.65" y1="21" y2="16.65"/>
           </svg>
-          <input type="search" id="input-search" class="search-input" placeholder="Cari catatan atau kategori..." aria-label="Cari transaksi">
+          <input type="search" id="input-search" class="search-input" placeholder="Cari catatan, dompet, kategori..." aria-label="Cari transaksi">
         </div>
 
         <div class="filter-bar" role="tablist" aria-label="Filter jenis transaksi">
           <button class="filter-pill active" data-history-type="all" role="tab">Semua</button>
           <button class="filter-pill" data-history-type="Pengeluaran" role="tab">Pengeluaran</button>
           <button class="filter-pill" data-history-type="Pemasukan" role="tab">Pemasukan</button>
+          <button class="filter-pill" data-history-type="Transfer" role="tab">Pindah Dana</button>
         </div>
 
         <!-- Transactions Container -->
@@ -248,10 +262,11 @@
       </div>
 
       <form id="form-transaction">
-        <!-- Toggle Jenis Transaksi -->
+        <!-- Toggle Jenis Transaksi: Pengeluaran / Pemasukan / Pindah Dana -->
         <div class="type-toggle-wrapper" role="radiogroup" aria-label="Jenis Transaksi">
           <button type="button" id="toggle-type-expense" class="type-toggle-btn active expense">Pengeluaran</button>
           <button type="button" id="toggle-type-income" class="type-toggle-btn income">Pemasukan</button>
+          <button type="button" id="toggle-type-transfer" class="type-toggle-btn transfer">Pindah Dana</button>
         </div>
 
         <!-- Input Nominal -->
@@ -263,18 +278,31 @@
           </div>
         </div>
 
-        <!-- Pilihan Kategori -->
-        <div class="form-group">
-          <label for="select-category" class="form-label">Kategori</label>
-          <select id="select-category" class="form-select" required>
-            <!-- Diisi otomatis berdasarkan jenis -->
-          </select>
+        <!-- Kategori (Untuk Pemasukan & Pengeluaran) -->
+        <div id="group-category" class="form-group">
+          <div class="label-with-action">
+            <label for="select-category" class="form-label" style="margin-bottom:0;">Kategori</label>
+            <button type="button" id="btn-trigger-add-category" class="btn-inline-link">+ Kategori Baru</button>
+          </div>
+          <select id="select-category" class="form-select" required></select>
         </div>
 
-        <!-- Field Sumber (hanya muncul saat jenis Pemasukan) -->
-        <div id="group-source" class="form-group" style="display: none;">
-          <label for="input-source" class="form-label">Sumber Dana</label>
-          <input type="text" id="input-source" class="form-input" placeholder="Contoh: Rekening BCA, Kantor, dll.">
+        <!-- Dompet (Untuk Pemasukan & Pengeluaran) -->
+        <div id="group-single-wallet" class="form-group">
+          <label id="label-single-wallet" for="select-wallet" class="form-label">Sumber Dompet</label>
+          <select id="select-wallet" class="form-select" required></select>
+        </div>
+
+        <!-- Khusus Pindah Dana: Dari Dompet & Ke Dompet -->
+        <div id="group-transfer-wallets" style="display: none;">
+          <div class="form-group">
+            <label for="select-transfer-from" class="form-label">Dari Dompet (Asal)</label>
+            <select id="select-transfer-from" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label for="select-transfer-to" class="form-label">Ke Dompet (Tujuan)</label>
+            <select id="select-transfer-to" class="form-select"></select>
+          </div>
         </div>
 
         <!-- Input Tanggal -->
@@ -319,13 +347,13 @@
           <span class="detail-row-label">Nominal</span>
           <span id="detail-amount" class="detail-row-value">-</span>
         </div>
-        <div class="detail-row">
+        <div class="detail-row" id="detail-row-category">
           <span class="detail-row-label">Kategori</span>
           <span id="detail-category" class="detail-row-value">-</span>
         </div>
-        <div id="detail-row-source" class="detail-row" style="display: none;">
-          <span class="detail-row-label">Sumber</span>
-          <span id="detail-source" class="detail-row-value">-</span>
+        <div class="detail-row" id="detail-row-wallet">
+          <span class="detail-row-label" id="detail-label-wallet">Dompet</span>
+          <span id="detail-wallet" class="detail-row-value">-</span>
         </div>
         <div class="detail-row">
           <span class="detail-row-label">Tanggal</span>
@@ -341,6 +369,74 @@
         <button type="button" id="btn-edit-from-detail" class="btn-action-edit">Edit</button>
         <button type="button" id="btn-delete-from-detail" class="btn-action-delete">Hapus</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: TAMBAH DOMPET BARU ================= -->
+  <div id="modal-add-wallet" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-add-wallet-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-add-wallet-title" class="modal-title">Tambah Dompet / Rekening</h2>
+        <button id="btn-close-add-wallet" class="modal-close-btn" aria-label="Tutup">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-add-wallet">
+        <div class="form-group">
+          <label for="input-wallet-name" class="form-label">Nama Dompet / Rekening</label>
+          <input type="text" id="input-wallet-name" class="form-input" placeholder="Contoh: BCA, OVO, Brankas..." required>
+        </div>
+
+        <div class="form-group">
+          <label for="input-wallet-initial" class="form-label">Saldo Awal (Opsional)</label>
+          <div class="nominal-input-wrapper">
+            <span class="nominal-prefix" aria-hidden="true">Rp</span>
+            <input type="text" id="input-wallet-initial" class="nominal-input" inputmode="numeric" placeholder="0">
+          </div>
+        </div>
+
+        <button type="submit" id="btn-submit-wallet" class="btn-submit">
+          <span>Simpan Dompet</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: TAMBAH KATEGORI BARU ================= -->
+  <div id="modal-add-category" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-add-cat-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-add-cat-title" class="modal-title">Tambah Kategori Baru</h2>
+        <button id="btn-close-add-cat" class="modal-close-btn" aria-label="Tutup">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-add-category">
+        <div class="form-group">
+          <label for="select-cat-type" class="form-label">Untuk Jenis Transaksi</label>
+          <select id="select-cat-type" class="form-select">
+            <option value="Pengeluaran">Pengeluaran</option>
+            <option value="Pemasukan">Pemasukan</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="input-category-name" class="form-label">Nama Kategori Baru</label>
+          <input type="text" id="input-category-name" class="form-input" placeholder="Contoh: Kopi, Langganan Netflix, Zakat..." required>
+        </div>
+
+        <button type="submit" id="btn-submit-category" class="btn-submit">
+          <span>Simpan Kategori</span>
+        </button>
+      </form>
     </div>
   </div>
 
@@ -404,8 +500,8 @@
   </div>
 
   <!-- Core Scripts -->
-  <script src="js/config.js?v=3"></script>
-  <script src="js/api.js?v=3"></script>
-  <script src="js/app.js?v=3"></script>
+  <script src="js/config.js?v=4"></script>
+  <script src="js/api.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>

@@ -1,55 +1,101 @@
 /**
  * Catatan Keuangan Pribadi - Google Apps Script Backend
- * 
- * Hubungkan script ini dengan Google Sheets milik Anda.
- * Deploy sebagai Web App dengan akses: "Anyone" (Siapa saja).
+ * Mendukung Multi-Dompet, Pindah Dana (Transfer), dan Kategori Dinamis
  */
 
-// Token rahasia untuk melindungi endpoint Anda dari akses luar
-// Ganti token ini dengan kata sandi rahasia pilihan Anda!
 const CONFIG = {
   SECRET_TOKEN: "SECRET_KEUANGAN_2026",
   SHEET_INCOME: "Pemasukan",
-  SHEET_EXPENSE: "Pengeluaran"
+  SHEET_EXPENSE: "Pengeluaran",
+  SHEET_TRANSFER: "Transfer",
+  SHEET_WALLET: "Dompet",
+  SHEET_CATEGORY: "Kategori"
 };
 
 /**
- * Inisialisasi awal sheet dan header jika belum ada
- * Jalankan fungsi ini satu kali di editor Apps Script jika membuat spreadsheet baru
+ * Inisialisasi awal seluruh sheet dan header otomatis
  */
 function setupSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // Setup Sheet Pemasukan
+
+  // 1. Sheet Pemasukan
   let incomeSheet = ss.getSheetByName(CONFIG.SHEET_INCOME);
-  if (!incomeSheet) {
-    incomeSheet = ss.insertSheet(CONFIG.SHEET_INCOME);
-  }
+  if (!incomeSheet) incomeSheet = ss.insertSheet(CONFIG.SHEET_INCOME);
   if (incomeSheet.getLastRow() === 0) {
-    incomeSheet.appendRow(["Tanggal", "Nominal", "Kategori", "Catatan", "Sumber"]);
-    const headerRange = incomeSheet.getRange(1, 1, 1, 5);
-    headerRange.setFontWeight("bold");
-    headerRange.setBackground("#F3F4F6");
+    incomeSheet.appendRow(["Tanggal", "Nominal", "Kategori", "Catatan", "Dompet"]);
+    formatHeader(incomeSheet, 5);
   }
-  
-  // Setup Sheet Pengeluaran
+
+  // 2. Sheet Pengeluaran
   let expenseSheet = ss.getSheetByName(CONFIG.SHEET_EXPENSE);
-  if (!expenseSheet) {
-    expenseSheet = ss.insertSheet(CONFIG.SHEET_EXPENSE);
-  }
+  if (!expenseSheet) expenseSheet = ss.insertSheet(CONFIG.SHEET_EXPENSE);
   if (expenseSheet.getLastRow() === 0) {
-    expenseSheet.appendRow(["Tanggal", "Nominal", "Kategori", "Catatan"]);
-    const headerRange = expenseSheet.getRange(1, 1, 1, 4);
-    headerRange.setFontWeight("bold");
-    headerRange.setBackground("#F3F4F6");
+    expenseSheet.appendRow(["Tanggal", "Nominal", "Kategori", "Catatan", "Dompet"]);
+    formatHeader(expenseSheet, 5);
   }
-  
-  Logger.log("Inisialisasi sheet selesai!");
+
+  // 3. Sheet Transfer (Pindah Dana)
+  let transferSheet = ss.getSheetByName(CONFIG.SHEET_TRANSFER);
+  if (!transferSheet) transferSheet = ss.insertSheet(CONFIG.SHEET_TRANSFER);
+  if (transferSheet.getLastRow() === 0) {
+    transferSheet.appendRow(["Tanggal", "Nominal", "Dari Dompet", "Ke Dompet", "Catatan"]);
+    formatHeader(transferSheet, 5);
+  }
+
+  // 4. Sheet Dompet (Daftar Akun / Saldo Awal)
+  let walletSheet = ss.getSheetByName(CONFIG.SHEET_WALLET);
+  if (!walletSheet) walletSheet = ss.insertSheet(CONFIG.SHEET_WALLET);
+  if (walletSheet.getLastRow() === 0) {
+    walletSheet.appendRow(["Nama Dompet", "Saldo Awal"]);
+    formatHeader(walletSheet, 2);
+    // Default Wallets
+    const defaults = [
+      ["Cash", 0],
+      ["Bank 1", 0],
+      ["Bank 2", 0],
+      ["GoPay", 0],
+      ["ShopeePay", 0],
+      ["DANA", 0]
+    ];
+    defaults.forEach(w => walletSheet.appendRow(w));
+  }
+
+  // 5. Sheet Kategori
+  let categorySheet = ss.getSheetByName(CONFIG.SHEET_CATEGORY);
+  if (!categorySheet) categorySheet = ss.insertSheet(CONFIG.SHEET_CATEGORY);
+  if (categorySheet.getLastRow() === 0) {
+    categorySheet.appendRow(["Jenis", "Nama Kategori"]);
+    formatHeader(categorySheet, 2);
+    const defaultCategories = [
+      ["Pemasukan", "Gaji"],
+      ["Pemasukan", "Bonus / Uang Lembur"],
+      ["Pemasukan", "Transfer dari Keluarga"],
+      ["Pemasukan", "Lain-lain"],
+      ["Pengeluaran", "Makan & Minum"],
+      ["Pengeluaran", "Transportasi"],
+      ["Pengeluaran", "Belanja Kebutuhan Rumah"],
+      ["Pengeluaran", "Hiburan & Hobi"],
+      ["Pengeluaran", "Kesehatan"],
+      ["Pengeluaran", "Pakaian & Penampilan"],
+      ["Pengeluaran", "Pendidikan"],
+      ["Pengeluaran", "Tabungan / Investasi"],
+      ["Pengeluaran", "Skincare & Kosmetik"],
+      ["Pengeluaran", "Lain-lain"]
+    ];
+    defaultCategories.forEach(c => categorySheet.appendRow(c));
+  }
+
+  Logger.log("Inisialisasi seluruh sheet selesai!");
+}
+
+function formatHeader(sheet, numCols) {
+  const range = sheet.getRange(1, 1, 1, numCols);
+  range.setFontWeight("bold");
+  range.setBackground("#F3F4F6");
 }
 
 /**
- * Handle GET Request (Membaca Data)
- * Endpoint: ?token=xxx&action=getAll | getSummary
+ * Handle GET Request (Membaca Semua Data)
  */
 function doGet(e) {
   const callback = (e && e.parameter && e.parameter.callback) || null;
@@ -58,231 +104,298 @@ function doGet(e) {
     if (token !== CONFIG.SECRET_TOKEN) {
       return createJsonResponse({ status: "error", message: "Token otentikasi tidak valid" }, callback);
     }
-    
-    // Pastikan sheet sudah ada
+
     ensureSheetsExist();
-
-    const action = (e && e.parameter && e.parameter.action) || "getAll";
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    if (action === "getAll") {
-      const incomeData = readSheetRows(ss.getSheetByName(CONFIG.SHEET_INCOME), "Pemasukan");
-      const expenseData = readSheetRows(ss.getSheetByName(CONFIG.SHEET_EXPENSE), "Pengeluaran");
-      
-      // Gabungkan dan urutkan transaksi (terbaru lebih awal)
-      const allTransactions = incomeData.concat(expenseData);
-      
-      return createJsonResponse({
-        status: "success",
-        data: {
-          transactions: allTransactions,
-          income: incomeData,
-          expense: expenseData
-        }
-      }, callback);
-    }
 
-    return createJsonResponse({ status: "error", message: "Action tidak dikenali" }, callback);
+    const incomeData = readSheetRows(ss.getSheetByName(CONFIG.SHEET_INCOME), "Pemasukan");
+    const expenseData = readSheetRows(ss.getSheetByName(CONFIG.SHEET_EXPENSE), "Pengeluaran");
+    const transferData = readTransferRows(ss.getSheetByName(CONFIG.SHEET_TRANSFER));
+    const walletData = readWalletRows(ss.getSheetByName(CONFIG.SHEET_WALLET));
+    const categoryData = readCategoryRows(ss.getSheetByName(CONFIG.SHEET_CATEGORY));
+
+    // Gabungkan transaksi untuk riwayat
+    const allTransactions = incomeData.concat(expenseData).concat(transferData);
+
+    return createJsonResponse({
+      status: "success",
+      data: {
+        transactions: allTransactions,
+        income: incomeData,
+        expense: expenseData,
+        transfers: transferData,
+        wallets: walletData,
+        categories: categoryData
+      }
+    }, callback);
   } catch (error) {
     return createJsonResponse({ status: "error", message: error.toString() }, callback);
   }
 }
 
 /**
- * Handle POST Request (Menambah, Mengedit, Menghapus Data)
+ * Handle POST Request (Menulis, Mengedit, Menghapus)
  */
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return createJsonResponse({ status: "error", message: "Tidak ada payload data yang diterima" });
+      return createJsonResponse({ status: "error", message: "Tidak ada data yang diterima" });
     }
 
     const payload = JSON.parse(e.postData.contents);
     if (payload.token !== CONFIG.SECRET_TOKEN) {
-      return createJsonResponse({ status: "error", message: "Token otentikasi tidak valid" }, 403);
+      return createJsonResponse({ status: "error", message: "Token otentikasi tidak valid" });
     }
 
     ensureSheetsExist();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const action = payload.action;
-    const type = payload.type; // "Pemasukan" atau "Pengeluaran"
-    const sheetName = type === "Pemasukan" ? CONFIG.SHEET_INCOME : CONFIG.SHEET_EXPENSE;
-    const sheet = ss.getSheetByName(sheetName);
 
-    if (!sheet) {
-      return createJsonResponse({ status: "error", message: "Sheet tidak ditemukan: " + sheetName });
-    }
-
-    // 1. TAMBAH TRANSAKSI
+    // 1. TAMBAH TRANSAKSI (Pemasukan / Pengeluaran)
     if (action === "add") {
+      const type = payload.type;
+      const sheetName = type === "Pemasukan" ? CONFIG.SHEET_INCOME : CONFIG.SHEET_EXPENSE;
+      const sheet = ss.getSheetByName(sheetName);
       const data = payload.data;
-      if (!data || !data.amount || !data.category || !data.date) {
-        return createJsonResponse({ status: "error", message: "Data tidak lengkap" });
-      }
 
-      let rowData = [];
-      if (type === "Pemasukan") {
-        rowData = [
-          data.date,                        // Tanggal (DD/MM/YYYY)
-          Number(data.amount),              // Nominal
-          data.category || "",              // Kategori
-          data.note || "",                  // Catatan
-          data.source || data.category || ""// Sumber
-        ];
-      } else {
-        rowData = [
-          data.date,                        // Tanggal (DD/MM/YYYY)
-          Number(data.amount),              // Nominal
-          data.category || "",              // Kategori
-          data.note || ""                   // Catatan
-        ];
-      }
-
+      const rowData = [
+        data.date,
+        Number(data.amount),
+        data.category || "",
+        data.note || "",
+        data.wallet || data.source || "Cash"
+      ];
       sheet.appendRow(rowData);
-      const newRowIndex = sheet.getLastRow();
 
       return createJsonResponse({
         status: "success",
         message: "Data " + type + " berhasil disimpan",
-        data: { rowIndex: newRowIndex }
+        data: { rowIndex: sheet.getLastRow() }
       });
     }
 
-    // 2. UPDATE TRANSAKSI
+    // 2. PINDAH DANA (TRANSFER ANTAR DOMPET)
+    if (action === "transfer") {
+      const sheet = ss.getSheetByName(CONFIG.SHEET_TRANSFER);
+      const data = payload.data;
+
+      const rowData = [
+        data.date,
+        Number(data.amount),
+        data.fromWallet,
+        data.toWallet,
+        data.note || ""
+      ];
+      sheet.appendRow(rowData);
+
+      return createJsonResponse({
+        status: "success",
+        message: "Pindah dana berhasil dicatat",
+        data: { rowIndex: sheet.getLastRow() }
+      });
+    }
+
+    // 3. TAMBAH DOMPET BARU
+    if (action === "addWallet") {
+      const sheet = ss.getSheetByName(CONFIG.SHEET_WALLET);
+      const data = payload.data;
+      sheet.appendRow([data.name, Number(data.initialBalance || 0)]);
+      return createJsonResponse({ status: "success", message: "Dompet berhasil ditambahkan" });
+    }
+
+    // 4. TAMBAH KATEGORI BARU
+    if (action === "addCategory") {
+      const sheet = ss.getSheetByName(CONFIG.SHEET_CATEGORY);
+      const data = payload.data;
+      sheet.appendRow([data.type, data.name]);
+      return createJsonResponse({ status: "success", message: "Kategori berhasil ditambahkan" });
+    }
+
+    // 5. UPDATE TRANSAKSI
     if (action === "update") {
+      const type = payload.type;
       const rowIndex = Number(payload.rowIndex);
       const data = payload.data;
-      if (!rowIndex || rowIndex < 2) {
-        return createJsonResponse({ status: "error", message: "Baris data tidak valid untuk diedit" });
-      }
 
-      if (type === "Pemasukan") {
-        const rowData = [
-          data.date,
-          Number(data.amount),
-          data.category || "",
-          data.note || "",
-          data.source || data.category || ""
-        ];
+      if (type === "Transfer") {
+        const sheet = ss.getSheetByName(CONFIG.SHEET_TRANSFER);
+        const rowData = [data.date, Number(data.amount), data.fromWallet, data.toWallet, data.note || ""];
         sheet.getRange(rowIndex, 1, 1, 5).setValues([rowData]);
       } else {
-        const rowData = [
-          data.date,
-          Number(data.amount),
-          data.category || "",
-          data.note || ""
-        ];
-        sheet.getRange(rowIndex, 1, 1, 4).setValues([rowData]);
+        const sheetName = type === "Pemasukan" ? CONFIG.SHEET_INCOME : CONFIG.SHEET_EXPENSE;
+        const sheet = ss.getSheetByName(sheetName);
+        const rowData = [data.date, Number(data.amount), data.category || "", data.note || "", data.wallet || "Cash"];
+        sheet.getRange(rowIndex, 1, 1, 5).setValues([rowData]);
       }
 
-      return createJsonResponse({
-        status: "success",
-        message: "Data " + type + " baris " + rowIndex + " berhasil diperbarui"
-      });
+      return createJsonResponse({ status: "success", message: "Transaksi berhasil diperbarui" });
     }
 
-    // 3. HAPUS TRANSAKSI
+    // 6. HAPUS TRANSAKSI
     if (action === "delete") {
+      const type = payload.type;
       const rowIndex = Number(payload.rowIndex);
-      if (!rowIndex || rowIndex < 2) {
-        return createJsonResponse({ status: "error", message: "Baris data tidak valid untuk dihapus" });
-      }
+      let sheetName = CONFIG.SHEET_EXPENSE;
+      if (type === "Pemasukan") sheetName = CONFIG.SHEET_INCOME;
+      if (type === "Transfer") sheetName = CONFIG.SHEET_TRANSFER;
 
+      const sheet = ss.getSheetByName(sheetName);
       sheet.deleteRow(rowIndex);
-      return createJsonResponse({
-        status: "success",
-        message: "Data " + type + " baris " + rowIndex + " berhasil dihapus"
-      });
+      return createJsonResponse({ status: "success", message: "Transaksi berhasil dihapus" });
     }
 
-    return createJsonResponse({ status: "error", message: "Action POST tidak dikenali: " + action });
+    return createJsonResponse({ status: "error", message: "Action tidak dikenali: " + action });
   } catch (error) {
     return createJsonResponse({ status: "error", message: error.toString() });
   }
 }
 
 /**
- * Membaca semua baris data dari sheet tertentu
+ * Format tanggal dari sheet menjadi string DD/MM/YYYY yang bersih
+ */
+function normalizeDate(rawDate) {
+  if (!rawDate) return "";
+  if (Object.prototype.toString.call(rawDate) === "[object Date]" || rawDate instanceof Date) {
+    const d = new Date(rawDate);
+    const dd = ("0" + d.getDate()).slice(-2);
+    const mm = ("0" + (d.getMonth() + 1)).slice(-2);
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  const str = String(rawDate).trim();
+  const parsed = Date.parse(str);
+  if (!isNaN(parsed) && str.length > 10 && !str.includes("/")) {
+    const d = new Date(parsed);
+    const dd = ("0" + d.getDate()).slice(-2);
+    const mm = ("0" + (d.getMonth() + 1)).slice(-2);
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return str;
+}
+
+/**
+ * Baca baris transaksi Pemasukan / Pengeluaran
  */
 function readSheetRows(sheet, type) {
   if (!sheet) return [];
   const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return []; // Hanya header atau kosong
+  if (lastRow <= 1) return [];
 
-  const lastCol = type === "Pemasukan" ? 5 : 4;
-  const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
-
+  const values = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
   const results = [];
+
   for (let i = 0; i < values.length; i++) {
-    const rowNumber = i + 2; // Baris 1 adalah header
     const row = values[i];
-    
-    // Pastikan nominal valid
-    const rawDate = row[0];
     const rawAmount = row[1];
     if (!rawAmount && rawAmount !== 0) continue;
 
-    let formattedDate = "";
-    if (Object.prototype.toString.call(rawDate) === "[object Date]" || rawDate instanceof Date) {
-      const d = new Date(rawDate);
-      const dd = ("0" + d.getDate()).slice(-2);
-      const mm = ("0" + (d.getMonth() + 1)).slice(-2);
-      const yyyy = d.getFullYear();
-      formattedDate = `${dd}/${mm}/${yyyy}`;
-    } else {
-      const str = String(rawDate || "").trim();
-      const parsed = Date.parse(str);
-      if (!isNaN(parsed) && str.length > 10 && !str.includes("/")) {
-        const d = new Date(parsed);
-        const dd = ("0" + d.getDate()).slice(-2);
-        const mm = ("0" + (d.getMonth() + 1)).slice(-2);
-        const yyyy = d.getFullYear();
-        formattedDate = `${dd}/${mm}/${yyyy}`;
-      } else {
-        formattedDate = str;
-      }
-    }
-
-    if (type === "Pemasukan") {
-      results.push({
-        id: `inc-${rowNumber}`,
-        rowIndex: rowNumber,
-        type: "Pemasukan",
-        date: formattedDate,
-        amount: Number(rawAmount) || 0,
-        category: String(row[2] || "Lain-lain"),
-        note: String(row[3] || ""),
-        source: String(row[4] || row[2] || "")
-      });
-    } else {
-      results.push({
-        id: `exp-${rowNumber}`,
-        rowIndex: rowNumber,
-        type: "Pengeluaran",
-        date: formattedDate,
-        amount: Number(rawAmount) || 0,
-        category: String(row[2] || "Lain-lain"),
-        note: String(row[3] || "")
-      });
-    }
+    const rowNumber = i + 2;
+    results.push({
+      id: `${type.toLowerCase()}-${rowNumber}`,
+      rowIndex: rowNumber,
+      type: type,
+      date: normalizeDate(row[0]),
+      amount: Number(rawAmount) || 0,
+      category: String(row[2] || "Lain-lain"),
+      note: String(row[3] || ""),
+      wallet: String(row[4] || "Cash"),
+      source: String(row[4] || "Cash")
+    });
   }
 
   return results;
 }
 
 /**
- * Pastikan kedua sheet ada
+ * Baca baris sheet Transfer
  */
+function readTransferRows(sheet) {
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const values = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  const results = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    const rawAmount = row[1];
+    if (!rawAmount && rawAmount !== 0) continue;
+
+    const rowNumber = i + 2;
+    results.push({
+      id: `trf-${rowNumber}`,
+      rowIndex: rowNumber,
+      type: "Transfer",
+      date: normalizeDate(row[0]),
+      amount: Number(rawAmount) || 0,
+      fromWallet: String(row[2] || "Cash"),
+      toWallet: String(row[3] || "Bank 1"),
+      category: "Pindah Dana",
+      note: String(row[4] || "")
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Baca sheet Dompet
+ */
+function readWalletRows(sheet) {
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  const results = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const name = String(values[i][0] || "").trim();
+    if (!name) continue;
+    results.push({
+      id: `w-${i + 2}`,
+      rowIndex: i + 2,
+      name: name,
+      initialBalance: Number(values[i][1]) || 0
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Baca sheet Kategori
+ */
+function readCategoryRows(sheet) {
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  const results = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const type = String(values[i][0] || "").trim();
+    const name = String(values[i][1] || "").trim();
+    if (!name) continue;
+    results.push({
+      type: type,
+      name: name
+    });
+  }
+
+  return results;
+}
+
 function ensureSheetsExist() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss.getSheetByName(CONFIG.SHEET_INCOME) || !ss.getSheetByName(CONFIG.SHEET_EXPENSE)) {
+  if (!ss.getSheetByName(CONFIG.SHEET_WALLET) || !ss.getSheetByName(CONFIG.SHEET_TRANSFER)) {
     setupSheets();
   }
 }
 
-/**
- * Helper pembungkus response JSON (mendukung JSONP jika ada parameter callback)
- */
 function createJsonResponse(data, callbackName) {
   const jsonString = JSON.stringify(data);
   if (callbackName) {

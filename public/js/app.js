@@ -1,6 +1,6 @@
 /**
  * Catatan Keuangan Pribadi - Application Controller
- * Menghubungkan UI, interaksi pengguna, Chart.js, dan Data Layer (API)
+ * Mendukung Multi-Wallet, Pindah Dana (Transfer), dan Kategori Dinamis
  */
 
 (function () {
@@ -9,6 +9,9 @@
   // State Aplikasi
   const state = {
     transactions: [],
+    wallets: [],
+    categories: [],
+    transfers: [],
     selectedPeriod: "this-month",
     historyTypeFilter: "all",
     searchQuery: "",
@@ -41,6 +44,10 @@
     periodText: document.getElementById("summary-period-text"),
     periodButtons: document.querySelectorAll(".filter-pill[data-period]"),
 
+    // Wallets Carousel
+    walletsCarousel: document.getElementById("wallets-carousel"),
+    btnTriggerAddWallet: document.getElementById("btn-trigger-add-wallet"),
+
     // Insights
     topExpense: document.getElementById("insight-top-expense"),
     dailyAverage: document.getElementById("insight-daily-average"),
@@ -67,10 +74,21 @@
     formTx: document.getElementById("form-transaction"),
     toggleTypeExpense: document.getElementById("toggle-type-expense"),
     toggleTypeIncome: document.getElementById("toggle-type-income"),
+    toggleTypeTransfer: document.getElementById("toggle-type-transfer"),
     inputNominal: document.getElementById("input-nominal"),
+    
+    groupCategory: document.getElementById("group-category"),
     selectCategory: document.getElementById("select-category"),
-    groupSource: document.getElementById("group-source"),
-    inputSource: document.getElementById("input-source"),
+    btnTriggerAddCategory: document.getElementById("btn-trigger-add-category"),
+
+    groupSingleWallet: document.getElementById("group-single-wallet"),
+    labelSingleWallet: document.getElementById("label-single-wallet"),
+    selectWallet: document.getElementById("select-wallet"),
+
+    groupTransferWallets: document.getElementById("group-transfer-wallets"),
+    selectTransferFrom: document.getElementById("select-transfer-from"),
+    selectTransferTo: document.getElementById("select-transfer-to"),
+
     inputDate: document.getElementById("input-date"),
     inputNote: document.getElementById("input-note"),
     btnSubmitTx: document.getElementById("btn-submit-tx"),
@@ -80,13 +98,31 @@
     btnCloseDetailModal: document.getElementById("btn-close-detail-modal"),
     detailType: document.getElementById("detail-type"),
     detailAmount: document.getElementById("detail-amount"),
+    detailRowCategory: document.getElementById("detail-row-category"),
     detailCategory: document.getElementById("detail-category"),
-    detailRowSource: document.getElementById("detail-row-source"),
-    detailSource: document.getElementById("detail-source"),
+    detailRowWallet: document.getElementById("detail-row-wallet"),
+    detailLabelWallet: document.getElementById("detail-label-wallet"),
+    detailWallet: document.getElementById("detail-wallet"),
     detailDate: document.getElementById("detail-date"),
     detailNote: document.getElementById("detail-note"),
     btnEditFromDetail: document.getElementById("btn-edit-from-detail"),
     btnDeleteFromDetail: document.getElementById("btn-delete-from-detail"),
+
+    // Modal Tambah Dompet
+    modalAddWallet: document.getElementById("modal-add-wallet"),
+    btnCloseAddWallet: document.getElementById("btn-close-add-wallet"),
+    formAddWallet: document.getElementById("form-add-wallet"),
+    inputWalletName: document.getElementById("input-wallet-name"),
+    inputWalletInitial: document.getElementById("input-wallet-initial"),
+    btnSubmitWallet: document.getElementById("btn-submit-wallet"),
+
+    // Modal Tambah Kategori
+    modalAddCategory: document.getElementById("modal-add-category"),
+    btnCloseAddCat: document.getElementById("btn-close-add-cat"),
+    formAddCategory: document.getElementById("form-add-category"),
+    selectCatType: document.getElementById("select-cat-type"),
+    inputCategoryName: document.getElementById("input-category-name"),
+    btnSubmitCategory: document.getElementById("btn-submit-category"),
 
     // Modal Hapus
     modalConfirmDelete: document.getElementById("modal-confirm-delete"),
@@ -113,16 +149,10 @@
     return "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
 
-  /**
-   * Parse angka bersih dari string input Rupiah
-   */
   function parseRupiahInput(str) {
     return Number(String(str).replace(/[^0-9]/g, "")) || 0;
   }
 
-  /**
-   * Helper format tanggal ke DD/MM/YYYY
-   */
   function formatDateForSheet(dateObj) {
     const d = ("0" + dateObj.getDate()).slice(-2);
     const m = ("0" + (dateObj.getMonth() + 1)).slice(-2);
@@ -130,15 +160,11 @@
     return `${d}/${m}/${y}`;
   }
 
-  /**
-   * Parse fleksibel dari string atau Date object
-   */
   function parseSheetDate(strDate) {
     if (!strDate) return new Date();
     if (strDate instanceof Date) return strDate;
     const str = String(strDate).trim();
 
-    // Jika format DD/MM/YYYY
     const parts = str.split("/");
     if (parts.length === 3) {
       const day = Number(parts[0]);
@@ -149,14 +175,10 @@
       }
     }
 
-    // Format standar atau ISO
     const d = new Date(str);
     return isNaN(d.getTime()) ? new Date() : d;
   }
 
-  /**
-   * Format tampilan tanggal yang rapi dan elegan (contoh: "16 Nov 2026")
-   */
   function formatDisplayDate(dateInput) {
     const d = parseSheetDate(dateInput);
     const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
@@ -166,9 +188,6 @@
     return `${day} ${month} ${year}`;
   }
 
-  /**
-   * Format Date Object ke YYYY-MM-DD untuk input HTML date
-   */
   function toInputDateString(dateObj) {
     const y = dateObj.getFullYear();
     const m = ("0" + (dateObj.getMonth() + 1)).slice(-2);
@@ -176,9 +195,6 @@
     return `${y}-${m}-${d}`;
   }
 
-  /**
-   * Tampilkan Toast Notifikasi
-   */
   function showToast(message, type = "success") {
     const toast = document.createElement("div");
     toast.className = `toast ${type}`;
@@ -193,12 +209,9 @@
       toast.style.transform = "translateY(-10px)";
       toast.style.transition = "all 0.25s ease";
       setTimeout(() => toast.remove(), 250);
-    }, 3000);
+    }, 3200);
   }
 
-  /**
-   * Update Status Koneksi di Header
-   */
   function updateConnectionBadge() {
     if (!API.isConfigured()) {
       DOM.syncIndicator.className = "sync-dot offline";
@@ -209,9 +222,6 @@
     }
   }
 
-  /**
-   * Buka / Tutup Modal Sheet
-   */
   function openModal(modalEl) {
     modalEl.classList.add("active");
   }
@@ -221,68 +231,137 @@
   }
 
   /**
-   * Populasi Kategori Dropdown berdasarkan Jenis Transaksi
+   * Mengambil daftar kategori aktif berdasarkan jenis
+   */
+  function getActiveCategories(type) {
+    const fromBackend = state.categories
+      .filter((c) => c.type === type)
+      .map((c) => c.name);
+
+    if (fromBackend.length > 0) return fromBackend;
+
+    return type === "Pemasukan"
+      ? APP_CONFIG.DEFAULT_INCOME_CATEGORIES
+      : APP_CONFIG.DEFAULT_EXPENSE_CATEGORIES;
+  }
+
+  /**
+   * Mengambil daftar dompet aktif
+   */
+  function getActiveWallets() {
+    if (state.wallets && state.wallets.length > 0) {
+      return state.wallets;
+    }
+    return APP_CONFIG.DEFAULT_WALLETS;
+  }
+
+  /**
+   * Populasi Dropdown Kategori
    */
   function populateCategories(type, selectedCategory = "") {
     DOM.selectCategory.innerHTML = "";
-    const list = type === "Pemasukan" ? APP_CONFIG.INCOME_CATEGORIES : APP_CONFIG.EXPENSE_CATEGORIES;
+    const list = getActiveCategories(type);
 
     list.forEach((cat) => {
       const option = document.createElement("option");
       option.value = cat;
       option.textContent = cat;
-      if (cat === selectedCategory) {
-        option.selected = true;
-      }
+      if (cat === selectedCategory) option.selected = true;
       DOM.selectCategory.appendChild(option);
     });
   }
 
   /**
-   * Ganti Tab Transaksi di Modal Form (Pemasukan / Pengeluaran)
+   * Populasi Dropdown Dompet (Single & Transfer)
    */
-  function setTransactionFormType(type) {
-    state.editingType = type;
-    if (type === "Pengeluaran") {
-      DOM.toggleTypeExpense.classList.add("active");
-      DOM.toggleTypeIncome.classList.remove("active");
-      DOM.groupSource.style.display = "none";
-      populateCategories("Pengeluaran");
-    } else {
-      DOM.toggleTypeIncome.classList.add("active");
-      DOM.toggleTypeExpense.classList.remove("active");
-      DOM.groupSource.style.display = "block";
-      populateCategories("Pemasukan");
-    }
+  function populateWalletDropdowns(selectedWallet = "", fromVal = "", toVal = "") {
+    const wallets = getActiveWallets();
+
+    // Single Wallet Dropdown
+    DOM.selectWallet.innerHTML = "";
+    wallets.forEach((w) => {
+      const opt = document.createElement("option");
+      opt.value = w.name;
+      opt.textContent = `${w.name} (${formatRupiah(w.currentBalance || 0)})`;
+      if (w.name === selectedWallet) opt.selected = true;
+      DOM.selectWallet.appendChild(opt);
+    });
+
+    // Transfer From Dropdown
+    DOM.selectTransferFrom.innerHTML = "";
+    wallets.forEach((w) => {
+      const opt = document.createElement("option");
+      opt.value = w.name;
+      opt.textContent = `${w.name} (${formatRupiah(w.currentBalance || 0)})`;
+      if (w.name === fromVal) opt.selected = true;
+      DOM.selectTransferFrom.appendChild(opt);
+    });
+
+    // Transfer To Dropdown
+    DOM.selectTransferTo.innerHTML = "";
+    wallets.forEach((w, idx) => {
+      const opt = document.createElement("option");
+      opt.value = w.name;
+      opt.textContent = `${w.name} (${formatRupiah(w.currentBalance || 0)})`;
+      // Default to wallet different from 'from'
+      if (toVal ? w.name === toVal : idx === 1) opt.selected = true;
+      DOM.selectTransferTo.appendChild(opt);
+    });
   }
 
   /**
-   * Buka Modal Tambah Transaksi Cepat (< 10 detik flow)
+   * Mengatur Tampilan Formulir Sesuai Jenis Transaksi
    */
+  function setTransactionFormType(type) {
+    state.editingType = type;
+
+    // Reset tombol tab
+    DOM.toggleTypeExpense.className = "type-toggle-btn expense";
+    DOM.toggleTypeIncome.className = "type-toggle-btn income";
+    DOM.toggleTypeTransfer.className = "type-toggle-btn transfer";
+
+    if (type === "Pengeluaran") {
+      DOM.toggleTypeExpense.classList.add("active");
+      DOM.groupCategory.style.display = "block";
+      DOM.groupSingleWallet.style.display = "block";
+      DOM.labelSingleWallet.textContent = "Sumber Dompet (Keluar dari)";
+      DOM.groupTransferWallets.style.display = "none";
+      populateCategories("Pengeluaran");
+      populateWalletDropdowns();
+    } else if (type === "Pemasukan") {
+      DOM.toggleTypeIncome.classList.add("active");
+      DOM.groupCategory.style.display = "block";
+      DOM.groupSingleWallet.style.display = "block";
+      DOM.labelSingleWallet.textContent = "Dompet Tujuan (Masuk ke)";
+      DOM.groupTransferWallets.style.display = "none";
+      populateCategories("Pemasukan");
+      populateWalletDropdowns();
+    } else {
+      // Pindah Dana (Transfer)
+      DOM.toggleTypeTransfer.classList.add("active");
+      DOM.groupCategory.style.display = "none";
+      DOM.groupSingleWallet.style.display = "none";
+      DOM.groupTransferWallets.style.display = "block";
+      populateWalletDropdowns();
+    }
+  }
+
   function openQuickAddModal() {
     state.isEditing = false;
     state.editingRowIndex = null;
     DOM.modalTxTitle.textContent = "Tambah Transaksi";
     DOM.btnSubmitTx.querySelector("span").textContent = "Simpan Transaksi";
 
-    // Reset Form
     DOM.inputNominal.value = "";
     DOM.inputNote.value = "";
-    DOM.inputSource.value = "";
     DOM.inputDate.value = toInputDateString(new Date());
 
     setTransactionFormType("Pengeluaran");
     openModal(DOM.modalTx);
 
-    // Auto focus nominal input
-    setTimeout(() => {
-      DOM.inputNominal.focus();
-    }, 150);
+    setTimeout(() => DOM.inputNominal.focus(), 150);
   }
 
-  /**
-   * Switch View (Dashboard vs Riwayat)
-   */
   function switchView(viewName) {
     if (viewName === "dashboard") {
       DOM.viewDashboard.style.display = "block";
@@ -300,13 +379,98 @@
   }
 
   /**
-   * Filter Transaksi Berdasarkan Periode Terpilih
+   * Menghitung Saldo Setiap Dompet Secara Presisi
+   */
+  function calculateWalletBalances() {
+    const walletMap = {};
+
+    // 1. Inisialisasi dari saldo awal
+    const wallets = getActiveWallets();
+    wallets.forEach((w) => {
+      walletMap[w.name] = Number(w.initialBalance) || 0;
+    });
+
+    // 2. Kalkulasi dari seluruh transaksi
+    state.transactions.forEach((tx) => {
+      const amt = Number(tx.amount) || 0;
+
+      if (tx.type === "Pemasukan") {
+        const wName = tx.wallet || tx.source || "Cash";
+        walletMap[wName] = (walletMap[wName] || 0) + amt;
+      } else if (tx.type === "Pengeluaran") {
+        const wName = tx.wallet || tx.source || "Cash";
+        walletMap[wName] = (walletMap[wName] || 0) - amt;
+      } else if (tx.type === "Transfer") {
+        const fromW = tx.fromWallet || "Cash";
+        const toW = tx.toWallet || "Bank 1";
+        walletMap[fromW] = (walletMap[fromW] || 0) - amt;
+        walletMap[toW] = (walletMap[toW] || 0) + amt;
+      }
+    });
+
+    // Pasang saldo terhitung ke state.wallets
+    state.wallets = wallets.map((w) => ({
+      ...w,
+      currentBalance: walletMap[w.name] || 0
+    }));
+
+    return walletMap;
+  }
+
+  /**
+   * Render Carousel Dompet di Dashboard
+   */
+  function renderWalletsCarousel() {
+    DOM.walletsCarousel.innerHTML = "";
+
+    state.wallets.forEach((w) => {
+      const card = document.createElement("div");
+      card.className = "wallet-card";
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-label", `Dompet ${w.name}: ${formatRupiah(w.currentBalance)}`);
+
+      // Tentukan inisial ikon
+      let iconText = "💰";
+      const lower = w.name.toLowerCase();
+      if (lower.includes("bank") || lower.includes("bca") || lower.includes("mandiri") || lower.includes("bni")) {
+        iconText = "🏦";
+      } else if (lower.includes("gopay") || lower.includes("shopee") || lower.includes("dana") || lower.includes("ovo")) {
+        iconText = "📱";
+      } else if (lower.includes("cash") || lower.includes("tunai")) {
+        iconText = "💵";
+      }
+
+      card.innerHTML = `
+        <div class="wallet-card-header">
+          <div class="wallet-card-icon" aria-hidden="true">${iconText}</div>
+          <span class="wallet-card-name">${w.name}</span>
+        </div>
+        <div class="wallet-card-balance">${formatRupiah(w.currentBalance)}</div>
+      `;
+
+      // Klik kartu dompet untuk memfilter riwayat sesuai dompet ini
+      card.addEventListener("click", () => {
+        DOM.inputSearch.value = w.name;
+        state.searchQuery = w.name;
+        switchView("history");
+      });
+
+      DOM.walletsCarousel.appendChild(card);
+    });
+  }
+
+  /**
+   * Filter Transaksi Berdasarkan Periode
    */
   function getFilteredTransactionsByPeriod() {
     const now = new Date();
     const period = state.selectedPeriod;
 
     return state.transactions.filter((item) => {
+      // Transfer tidak dihitung dalam grafik pemasukan/pengeluaran bulanan
+      if (item.type === "Transfer") return false;
+
       const itemDate = parseSheetDate(item.date);
 
       if (period === "today") {
@@ -318,8 +482,7 @@
       }
 
       if (period === "this-week") {
-        // Ambil hari Senin minggu ini
-        const day = now.getDay() || 7; // 1 = Senin, 7 = Minggu
+        const day = now.getDay() || 7;
         const monday = new Date(now);
         monday.setDate(now.getDate() - day + 1);
         monday.setHours(0, 0, 0, 0);
@@ -338,15 +501,22 @@
         );
       }
 
-      // 'all'
       return true;
     });
   }
 
   /**
-   * Render Tampilan Dashboard & Visualisasi Chart.js
+   * Render Dashboard
    */
   function renderDashboard() {
+    calculateWalletBalances();
+    renderWalletsCarousel();
+
+    // Total Saldo Bersih Global = jumlah seluruh saldo dompet saat ini
+    const totalGlobalNetBalance = state.wallets.reduce((acc, w) => acc + (w.currentBalance || 0), 0);
+    DOM.netBalance.textContent = formatRupiah(totalGlobalNetBalance);
+
+    // Filter transaksi untuk ringkasan periode
     const filtered = getFilteredTransactionsByPeriod();
 
     let totalInc = 0;
@@ -354,33 +524,28 @@
     const categoryTotals = {};
 
     filtered.forEach((tx) => {
+      const amt = Number(tx.amount) || 0;
       if (tx.type === "Pemasukan") {
-        totalInc += Number(tx.amount) || 0;
-      } else {
-        const amt = Number(tx.amount) || 0;
+        totalInc += amt;
+      } else if (tx.type === "Pengeluaran") {
         totalExp += amt;
         const cat = tx.category || "Lain-lain";
         categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
       }
     });
 
-    const netBal = totalInc - totalExp;
-
-    // Update Angka Summary
-    DOM.netBalance.textContent = formatRupiah(netBal);
     DOM.totalIncome.textContent = formatRupiah(totalInc);
     DOM.totalExpense.textContent = formatRupiah(totalExp);
 
-    // Update Label Periode
     const periodLabels = {
-      "today": "Hari Ini",
+      today: "Hari Ini",
       "this-week": "Minggu Ini",
       "this-month": "Bulan Ini",
-      "all": "Semua Waktu"
+      all: "Semua Waktu"
     };
     DOM.periodText.textContent = `Periode: ${periodLabels[state.selectedPeriod] || "Bulan Ini"}`;
 
-    // Update Insights
+    // Insights
     const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
     if (sortedCategories.length > 0) {
       DOM.topExpense.textContent = `${sortedCategories[0][0]} (${formatRupiah(sortedCategories[0][1])})`;
@@ -388,29 +553,20 @@
       DOM.topExpense.textContent = "Belum ada pengeluaran";
     }
 
-    // Rata-rata harian
     const now = new Date();
     let divisor = 1;
-    if (state.selectedPeriod === "this-month") {
-      divisor = Math.max(1, now.getDate());
-    } else if (state.selectedPeriod === "this-week") {
-      divisor = Math.max(1, now.getDay() || 7);
-    } else if (state.selectedPeriod === "today") {
-      divisor = 1;
-    } else {
-      divisor = 30;
-    }
+    if (state.selectedPeriod === "this-month") divisor = Math.max(1, now.getDate());
+    else if (state.selectedPeriod === "this-week") divisor = Math.max(1, now.getDay() || 7);
+    else if (state.selectedPeriod === "today") divisor = 1;
+    else divisor = 30;
+
     const avgDaily = Math.round(totalExp / divisor);
     DOM.dailyAverage.textContent = totalExp > 0 ? `${formatRupiah(avgDaily)} / hari` : "Rp 0 / hari";
 
-    // Render Charts
     renderCategoryDonut(categoryTotals, totalExp);
     renderComparisonBar(totalInc, totalExp);
   }
 
-  /**
-   * Chart 1: Donut Kategori Pengeluaran
-   */
   function renderCategoryDonut(categoryTotals, totalExp) {
     if (state.chartDonut) {
       state.chartDonut.destroy();
@@ -429,9 +585,8 @@
     DOM.chartCategoryCanvas.style.display = "block";
     DOM.chartDonutEmpty.style.display = "none";
 
-    // Palette elegan soft pink, coral, sage, amber
     const palette = [
-      "#E8829A", "#F2B5C5", "#E5A99B", "#F6D2C9", 
+      "#E8829A", "#F2B5C5", "#E5A99B", "#F6D2C9",
       "#C5A3B8", "#A3C4BC", "#BFD8D2", "#DFCCF1"
     ];
 
@@ -453,17 +608,14 @@
         plugins: {
           legend: {
             position: "bottom",
-            labels: {
-              boxWidth: 12,
-              font: { family: "Plus Jakarta Sans", size: 12 }
-            }
+            labels: { boxWidth: 12, font: { family: "Plus Jakarta Sans", size: 12 } }
           },
           tooltip: {
             callbacks: {
-              label: function (context) {
-                const val = context.raw || 0;
+              label: function (ctx) {
+                const val = ctx.raw || 0;
                 const pct = ((val / totalExp) * 100).toFixed(1);
-                return ` ${context.label}: ${formatRupiah(val)} (${pct}%)`;
+                return ` ${ctx.label}: ${formatRupiah(val)} (${pct}%)`;
               }
             }
           }
@@ -473,9 +625,6 @@
     });
   }
 
-  /**
-   * Chart 2: Perbandingan Pemasukan vs Pengeluaran (Bar)
-   */
   function renderComparisonBar(income, expense) {
     if (state.chartBar) {
       state.chartBar.destroy();
@@ -521,8 +670,8 @@
             beginAtZero: true,
             ticks: {
               callback: function (val) {
-                if (val >= 1000000) return (val / 1000000) + "jt";
-                if (val >= 1000) return (val / 1000) + "rb";
+                if (val >= 1000000) return val / 1000000 + "jt";
+                if (val >= 1000) return val / 1000 + "rb";
                 return val;
               },
               font: { family: "Plus Jakarta Sans", size: 11 }
@@ -539,29 +688,28 @@
   }
 
   /**
-   * Render Riwayat Transaksi
+   * Render Riwayat Transaksi (Termasuk Pindah Dana)
    */
   function renderHistoryList() {
     DOM.transactionsContainer.innerHTML = "";
 
     let list = [...state.transactions];
 
-    // Filter Jenis
     if (state.historyTypeFilter !== "all") {
       list = list.filter((item) => item.type === state.historyTypeFilter);
     }
 
-    // Filter Pencarian
     if (state.searchQuery.trim()) {
       const q = state.searchQuery.toLowerCase();
-      list = list.filter((item) => 
+      list = list.filter((item) =>
         (item.category && item.category.toLowerCase().includes(q)) ||
         (item.note && item.note.toLowerCase().includes(q)) ||
-        (item.source && item.source.toLowerCase().includes(q))
+        (item.wallet && item.wallet.toLowerCase().includes(q)) ||
+        (item.fromWallet && item.fromWallet.toLowerCase().includes(q)) ||
+        (item.toWallet && item.toWallet.toLowerCase().includes(q))
       );
     }
 
-    // Urutkan dari baris terbaru
     list.sort((a, b) => {
       const dateA = parseSheetDate(a.date);
       const dateB = parseSheetDate(b.date);
@@ -573,10 +721,10 @@
       DOM.btnRetryFetch.style.display = "none";
       if (state.searchQuery.trim()) {
         DOM.historyStateTitle.textContent = "Tidak Ditemukan";
-        DOM.historyStateDesc.textContent = "Tidak ada transaksi yang cocok dengan kata kunci pencarian Anda.";
+        DOM.historyStateDesc.textContent = "Tidak ada transaksi yang cocok dengan kata kunci.";
       } else {
         DOM.historyStateTitle.textContent = "Belum Ada Transaksi";
-        DOM.historyStateDesc.textContent = "Tekan tombol (+) untuk mencatat transaksi pertama Anda.";
+        DOM.historyStateDesc.textContent = "Tekan tombol (+) untuk mencatat transaksi baru.";
       }
       return;
     }
@@ -588,27 +736,45 @@
       card.className = "transaction-card";
       card.setAttribute("tabindex", "0");
       card.setAttribute("role", "button");
-      card.setAttribute("aria-label", `${item.type} ${item.category} sebesar ${formatRupiah(item.amount)}`);
 
-      const isInc = item.type === "Pemasukan";
-      const badgeIcon = isInc ? "↓" : "↑";
+      let badgeClass = "expense";
+      let badgeIcon = "↑";
+      let title = item.category;
+      let subtitle = "";
+      let amountPrefix = "-";
+
+      if (item.type === "Pemasukan") {
+        badgeClass = "income";
+        badgeIcon = "↓";
+        amountPrefix = "+";
+        subtitle = `${formatDisplayDate(item.date)} • Ke: ${item.wallet || item.source || "Cash"}`;
+      } else if (item.type === "Transfer") {
+        badgeClass = "transfer";
+        badgeIcon = "⇄";
+        title = "Pindah Dana";
+        amountPrefix = "";
+        subtitle = `${formatDisplayDate(item.date)} • ${item.fromWallet} → ${item.toWallet}`;
+      } else {
+        subtitle = `${formatDisplayDate(item.date)} • Dari: ${item.wallet || "Cash"}`;
+      }
+
+      if (item.note) subtitle += ` • ${item.note}`;
 
       card.innerHTML = `
         <div class="transaction-left">
-          <div class="transaction-type-badge ${isInc ? "income" : "expense"}" aria-hidden="true">
+          <div class="transaction-type-badge ${badgeClass}" aria-hidden="true">
             <span style="font-weight: 800; font-size: 1.1rem;">${badgeIcon}</span>
           </div>
           <div class="transaction-details">
-            <span class="transaction-category">${item.category}</span>
+            <span class="transaction-category">${title}</span>
             <div class="transaction-meta">
-              <span>${formatDisplayDate(item.date)}</span>
-              ${item.note ? `<span>• ${item.note}</span>` : ""}
+              <span>${subtitle}</span>
             </div>
           </div>
         </div>
         <div class="transaction-right">
-          <span class="transaction-amount ${isInc ? "income" : "expense"}">
-            ${isInc ? "+" : "-"} ${formatRupiah(item.amount)}
+          <span class="transaction-amount ${badgeClass}">
+            ${amountPrefix} ${formatRupiah(item.amount)}
           </span>
         </div>
       `;
@@ -625,31 +791,30 @@
     });
   }
 
-  /**
-   * Buka Modal Detail Transaksi
-   */
   function openDetailModal(item) {
     state.activeTransaction = item;
 
     DOM.detailType.textContent = item.type;
     DOM.detailAmount.textContent = formatRupiah(item.amount);
-    DOM.detailCategory.textContent = item.category;
     DOM.detailDate.textContent = formatDisplayDate(item.date);
     DOM.detailNote.textContent = item.note || "-";
 
-    if (item.type === "Pemasukan" && item.source) {
-      DOM.detailRowSource.style.display = "flex";
-      DOM.detailSource.textContent = item.source;
+    if (item.type === "Transfer") {
+      DOM.detailRowCategory.style.display = "none";
+      DOM.detailRowWallet.style.display = "flex";
+      DOM.detailLabelWallet.textContent = "Mutasi";
+      DOM.detailWallet.textContent = `${item.fromWallet} → ${item.toWallet}`;
     } else {
-      DOM.detailRowSource.style.display = "none";
+      DOM.detailRowCategory.style.display = "flex";
+      DOM.detailCategory.textContent = item.category;
+      DOM.detailRowWallet.style.display = "flex";
+      DOM.detailLabelWallet.textContent = item.type === "Pemasukan" ? "Masuk ke" : "Keluar dari";
+      DOM.detailWallet.textContent = item.wallet || item.source || "Cash";
     }
 
     openModal(DOM.modalDetail);
   }
 
-  /**
-   * Buka Modal Edit dari Detail
-   */
   function openEditModal() {
     closeModal(DOM.modalDetail);
 
@@ -665,17 +830,19 @@
 
     setTransactionFormType(item.type);
     DOM.inputNominal.value = formatRupiah(item.amount).replace("Rp ", "");
-    populateCategories(item.type, item.category);
     DOM.inputDate.value = toInputDateString(parseSheetDate(item.date));
     DOM.inputNote.value = item.note || "";
-    if (item.source) DOM.inputSource.value = item.source;
+
+    if (item.type === "Transfer") {
+      populateWalletDropdowns("", item.fromWallet, item.toWallet);
+    } else {
+      populateCategories(item.type, item.category);
+      populateWalletDropdowns(item.wallet || item.source);
+    }
 
     openModal(DOM.modalTx);
   }
 
-  /**
-   * Fetch Data dari Spreadsheet
-   */
   async function loadData() {
     if (!API.isConfigured()) {
       updateConnectionBadge();
@@ -694,6 +861,9 @@
     try {
       const data = await API.fetchTransactions();
       state.transactions = data.transactions || [];
+      state.wallets = data.wallets && data.wallets.length > 0 ? data.wallets : APP_CONFIG.DEFAULT_WALLETS;
+      state.categories = data.categories || [];
+
       updateConnectionBadge();
       renderDashboard();
       renderHistoryList();
@@ -711,16 +881,13 @@
     }
   }
 
-  /**
-   * Inisialisasi Event Listeners
-   */
   function initEvents() {
-    // 1. Navigasi Bottom
+    // Navigasi Bottom
     DOM.navTabDashboard.addEventListener("click", () => switchView("dashboard"));
     DOM.navTabHistory.addEventListener("click", () => switchView("history"));
     DOM.navBtnAddQuick.addEventListener("click", openQuickAddModal);
 
-    // 2. Filter Periode di Dashboard
+    // Filter Periode
     DOM.periodButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
         DOM.periodButtons.forEach((b) => {
@@ -734,7 +901,7 @@
       });
     });
 
-    // 3. Search & Filter di Riwayat
+    // Search & Filter Riwayat
     DOM.inputSearch.addEventListener("input", (e) => {
       state.searchQuery = e.target.value;
       renderHistoryList();
@@ -749,21 +916,18 @@
       });
     });
 
-    // 4. Modal Form Toggle Pemasukan / Pengeluaran
+    // Form Toggle: Pengeluaran / Pemasukan / Pindah Dana
     DOM.toggleTypeExpense.addEventListener("click", () => setTransactionFormType("Pengeluaran"));
     DOM.toggleTypeIncome.addEventListener("click", () => setTransactionFormType("Pemasukan"));
+    DOM.toggleTypeTransfer.addEventListener("click", () => setTransactionFormType("Transfer"));
 
-    // 5. Input Nominal Formatting Mask
+    // Input Nominal Format Mask
     DOM.inputNominal.addEventListener("input", (e) => {
       const rawNum = parseRupiahInput(e.target.value);
-      if (rawNum === 0) {
-        e.target.value = "";
-      } else {
-        e.target.value = rawNum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-      }
+      e.target.value = rawNum === 0 ? "" : rawNum.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     });
 
-    // 6. Form Submit (Tambah / Edit Transaksi)
+    // Form Submit (Tambah / Edit Transaksi atau Transfer)
     DOM.formTx.addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -774,7 +938,6 @@
         return;
       }
 
-      const category = DOM.selectCategory.value;
       const dateVal = DOM.inputDate.value;
       if (!dateVal) {
         showToast("Pilih tanggal transaksi", "error");
@@ -783,33 +946,66 @@
 
       const formattedDate = formatDateForSheet(new Date(dateVal));
       const note = DOM.inputNote.value.trim();
-      const source = DOM.inputSource.value.trim();
       const type = state.editingType;
 
-      // Disable button saat proses kirim
       DOM.btnSubmitTx.disabled = true;
       DOM.btnSubmitTx.querySelector("span").textContent = "Menyimpan...";
 
       try {
-        if (state.isEditing) {
-          await API.updateTransaction(type, state.editingRowIndex, {
-            date: formattedDate,
-            amount: nominal,
-            category: category,
-            note: note,
-            source: source
-          });
-          showToast("Transaksi berhasil diperbarui!", "success");
+        if (type === "Transfer") {
+          const fromW = DOM.selectTransferFrom.value;
+          const toW = DOM.selectTransferTo.value;
+          if (fromW === toW) {
+            showToast("Dompet asal dan tujuan tidak boleh sama!", "error");
+            DOM.btnSubmitTx.disabled = false;
+            DOM.btnSubmitTx.querySelector("span").textContent = "Simpan Transaksi";
+            return;
+          }
+
+          if (state.isEditing) {
+            await API.updateTransaction("Transfer", state.editingRowIndex, {
+              date: formattedDate,
+              amount: nominal,
+              fromWallet: fromW,
+              toWallet: toW,
+              note: note
+            });
+            showToast("Pindah dana berhasil diperbarui!", "success");
+          } else {
+            await API.transferFunds({
+              date: formattedDate,
+              amount: nominal,
+              fromWallet: fromW,
+              toWallet: toW,
+              note: note
+            });
+            showToast("Pindah dana berhasil dicatat!", "success");
+          }
         } else {
-          await API.addTransaction({
-            type: type,
-            date: formattedDate,
-            amount: nominal,
-            category: category,
-            note: note,
-            source: source
-          });
-          showToast("Transaksi berhasil disimpan!", "success");
+          // Pemasukan / Pengeluaran
+          const category = DOM.selectCategory.value;
+          const wallet = DOM.selectWallet.value;
+
+          if (state.isEditing) {
+            await API.updateTransaction(type, state.editingRowIndex, {
+              date: formattedDate,
+              amount: nominal,
+              category: category,
+              note: note,
+              wallet: wallet
+            });
+            showToast("Transaksi berhasil diperbarui!", "success");
+          } else {
+            await API.addTransaction({
+              type: type,
+              date: formattedDate,
+              amount: nominal,
+              category: category,
+              note: note,
+              wallet: wallet
+            });
+            showToast("Transaksi berhasil disimpan!", "success");
+          }
         }
 
         closeModal(DOM.modalTx);
@@ -822,28 +1018,106 @@
       }
     });
 
-    // 7. Tutup Modal
+    // Tambah Dompet Baru Trigger & Form
+    DOM.btnTriggerAddWallet.addEventListener("click", () => {
+      DOM.inputWalletName.value = "";
+      DOM.inputWalletInitial.value = "";
+      openModal(DOM.modalAddWallet);
+      setTimeout(() => DOM.inputWalletName.focus(), 150);
+    });
+
+    DOM.inputWalletInitial.addEventListener("input", (e) => {
+      const raw = parseRupiahInput(e.target.value);
+      e.target.value = raw === 0 ? "" : raw.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    });
+
+    DOM.formAddWallet.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = DOM.inputWalletName.value.trim();
+      const initialBal = parseRupiahInput(DOM.inputWalletInitial.value);
+
+      if (!name) return;
+
+      DOM.btnSubmitWallet.disabled = true;
+      DOM.btnSubmitWallet.querySelector("span").textContent = "Menyimpan...";
+
+      try {
+        await API.addWallet({ name, initialBalance: initialBal });
+        showToast(`Dompet '${name}' berhasil ditambahkan!`, "success");
+        closeModal(DOM.modalAddWallet);
+        await loadData();
+      } catch (err) {
+        showToast(err.message || "Gagal menambah dompet", "error");
+      } finally {
+        DOM.btnSubmitWallet.disabled = false;
+        DOM.btnSubmitWallet.querySelector("span").textContent = "Simpan Dompet";
+      }
+    });
+
+    // Tambah Kategori Baru Trigger & Form
+    DOM.btnTriggerAddCategory.addEventListener("click", () => {
+      DOM.inputCategoryName.value = "";
+      DOM.selectCatType.value = state.editingType === "Pemasukan" ? "Pemasukan" : "Pengeluaran";
+      openModal(DOM.modalAddCategory);
+      setTimeout(() => DOM.inputCategoryName.focus(), 150);
+    });
+
+    DOM.formAddCategory.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = DOM.inputCategoryName.value.trim();
+      const type = DOM.selectCatType.value;
+
+      if (!name) return;
+
+      DOM.btnSubmitCategory.disabled = true;
+      DOM.btnSubmitCategory.querySelector("span").textContent = "Menyimpan...";
+
+      try {
+        await API.addCategory({ type, name });
+        showToast(`Kategori '${name}' berhasil ditambahkan!`, "success");
+        closeModal(DOM.modalAddCategory);
+        
+        // Perbarui lokal dan pilih kategori baru tersebut di dropdown
+        state.categories.push({ type, name });
+        populateCategories(state.editingType, name);
+      } catch (err) {
+        showToast(err.message || "Gagal menambah kategori", "error");
+      } finally {
+        DOM.btnSubmitCategory.disabled = false;
+        DOM.btnSubmitCategory.querySelector("span").textContent = "Simpan Kategori";
+      }
+    });
+
+    // Tutup Modals
     DOM.btnCloseTxModal.addEventListener("click", () => closeModal(DOM.modalTx));
     DOM.btnCloseDetailModal.addEventListener("click", () => closeModal(DOM.modalDetail));
+    DOM.btnCloseAddWallet.addEventListener("click", () => closeModal(DOM.modalAddWallet));
+    DOM.btnCloseAddCat.addEventListener("click", () => closeModal(DOM.modalAddCategory));
     DOM.btnCloseDelModal.addEventListener("click", () => closeModal(DOM.modalConfirmDelete));
     DOM.btnCancelDelete.addEventListener("click", () => closeModal(DOM.modalConfirmDelete));
     DOM.btnCloseSettingsModal.addEventListener("click", () => closeModal(DOM.modalSettings));
 
-    // Klik luar modal sheet untuk menutup
-    [DOM.modalTx, DOM.modalDetail, DOM.modalConfirmDelete, DOM.modalSettings].forEach((modal) => {
+    [
+      DOM.modalTx,
+      DOM.modalDetail,
+      DOM.modalAddWallet,
+      DOM.modalAddCategory,
+      DOM.modalConfirmDelete,
+      DOM.modalSettings
+    ].forEach((modal) => {
       modal.addEventListener("click", (e) => {
         if (e.target === modal) closeModal(modal);
       });
     });
 
-    // 8. Edit & Delete Action dari Detail Modal
+    // Detail Modal Actions
     DOM.btnEditFromDetail.addEventListener("click", openEditModal);
     DOM.btnDeleteFromDetail.addEventListener("click", () => {
       closeModal(DOM.modalDetail);
       openModal(DOM.modalConfirmDelete);
     });
 
-    // 9. Konfirmasi Hapus Transaksi
+    // Konfirmasi Hapus Transaksi
     DOM.btnConfirmDelete.addEventListener("click", async () => {
       const item = state.activeTransaction;
       if (!item) return;
@@ -864,7 +1138,7 @@
       }
     });
 
-    // 10. Pengaturan Koneksi
+    // Pengaturan
     DOM.btnOpenSettings.addEventListener("click", () => {
       DOM.settingsScriptUrl.value = APP_CONFIG.getScriptUrl();
       DOM.settingsSecretToken.value = APP_CONFIG.getSecretToken();
@@ -882,45 +1156,38 @@
       await loadData();
     });
 
-    // Tutup modal dengan tombol Escape
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         closeModal(DOM.modalTx);
         closeModal(DOM.modalDetail);
+        closeModal(DOM.modalAddWallet);
+        closeModal(DOM.modalAddCategory);
         closeModal(DOM.modalConfirmDelete);
         closeModal(DOM.modalSettings);
       }
     });
   }
 
-  /**
-   * Registrasi Service Worker untuk PWA
-   */
   function registerServiceWorker() {
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js").then(
-          (reg) => console.log("Service Worker terdaftar dengan scope:", reg.scope),
+          (reg) => console.log("Service Worker terdaftar:", reg.scope),
           (err) => console.log("Service Worker gagal didaftarkan:", err)
         );
       });
     }
   }
 
-  /**
-   * Bootstrapping Aplikasi
-   */
   function init() {
     initEvents();
     registerServiceWorker();
     loadData();
   }
 
-  // Jalankan saat DOM siap
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
     init();
   }
-
 })();

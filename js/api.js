@@ -3,17 +3,12 @@
  * Menangani komunikasi data ke Google Apps Script Web App
  */
 const API = {
-  /**
-   * Validasi format URL Apps Script
-   */
   validateUrl(url) {
     if (!url || typeof url !== "string") {
       return { valid: false, message: "URL Google Apps Script belum diisi." };
     }
 
     const clean = url.trim();
-
-    // Deteksi jika user menyalin URL redirect sementara dari browser
     if (clean.includes("script.googleusercontent.com")) {
       return {
         valid: false,
@@ -31,34 +26,28 @@ const API = {
     if (!clean.endsWith("/exec")) {
       return {
         valid: false,
-        message: "URL Apps Script harus berakhiran '/exec'. Pastikan Anda menyalin URL Web App hasil Deploy."
+        message: "URL Apps Script harus berakhiran '/exec'."
       };
     }
 
     return { valid: true };
   },
 
-  /**
-   * Status konfigurasi
-   */
   isConfigured() {
     const url = APP_CONFIG.getScriptUrl();
     return this.validateUrl(url).valid;
   },
 
   /**
-   * Mengambil semua transaksi dari spreadsheet (Mendukung Fetch + Fallback JSONP)
+   * Mengambil semua data (Transaksi, Dompet, Kategori, Transfer)
    */
   async fetchTransactions() {
     const scriptUrl = APP_CONFIG.getScriptUrl();
     const check = this.validateUrl(scriptUrl);
-    if (!check.valid) {
-      throw new Error(check.message);
-    }
+    if (!check.valid) throw new Error(check.message);
 
     const token = APP_CONFIG.getSecretToken();
 
-    // Coba Fetch standar terlebih dahulu
     try {
       const targetUrl = `${scriptUrl}?token=${encodeURIComponent(token)}&action=getAll&_t=${Date.now()}`;
       const response = await fetch(targetUrl, {
@@ -77,9 +66,8 @@ const API = {
 
       return result.data;
     } catch (fetchErr) {
-      console.warn("Fetch standar gagal (kemungkinan batasan CORS file:///), mencoba jalur JSONP...", fetchErr);
+      console.warn("Fetch standar gagal, mencoba JSONP fallback...", fetchErr);
 
-      // Fallback ke JSONP (Sangat ampuh jika dibuka dari file:/// lokal)
       try {
         const jsonpData = await this.fetchJsonp(`${scriptUrl}?token=${encodeURIComponent(token)}&action=getAll`);
         if (jsonpData.status !== "success") {
@@ -87,7 +75,6 @@ const API = {
         }
         return jsonpData.data;
       } catch (jsonpErr) {
-        console.error("Jalur JSONP juga gagal:", jsonpErr);
         throw new Error(
           fetchErr.message && fetchErr.message !== "Failed to fetch"
             ? fetchErr.message
@@ -97,9 +84,6 @@ const API = {
     }
   },
 
-  /**
-   * Helper request JSONP untuk mengatasi blokade CORS saat file dibuka lokal (file:///)
-   */
   fetchJsonp(url) {
     return new Promise((resolve, reject) => {
       const callbackName = "jsonp_cb_" + Math.round(100000 * Math.random());
@@ -107,10 +91,9 @@ const API = {
       const separator = url.includes("?") ? "&" : "?";
       script.src = `${url}${separator}callback=${callbackName}&_t=${Date.now()}`;
 
-      // Timer batas waktu 10 detik
       const timeout = setTimeout(() => {
         cleanup();
-        reject(new Error("Batas waktu koneksi habis (Timeout). Periksa koneksi internet atau Web App URL."));
+        reject(new Error("Batas waktu koneksi habis (Timeout)."));
       }, 10000);
 
       function cleanup() {
@@ -134,13 +117,9 @@ const API = {
   },
 
   /**
-   * Menyimpan transaksi baru (Pemasukan atau Pengeluaran)
+   * Menyimpan transaksi baru (Pemasukan / Pengeluaran)
    */
   async addTransaction(transactionData) {
-    const scriptUrl = APP_CONFIG.getScriptUrl();
-    const check = this.validateUrl(scriptUrl);
-    if (!check.valid) throw new Error(check.message);
-
     const payload = {
       token: APP_CONFIG.getSecretToken(),
       action: "add",
@@ -150,69 +129,97 @@ const API = {
         amount: Number(transactionData.amount),
         category: transactionData.category,
         note: transactionData.note || "",
-        source: transactionData.source || transactionData.category || ""
+        wallet: transactionData.wallet || "Cash"
       }
     };
-
     return this.postRequest(payload);
   },
 
   /**
-   * Mengedit baris transaksi yang sudah ada
+   * Pindah Dana (Transfer Antar Dompet)
+   */
+  async transferFunds(transferData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "transfer",
+      data: {
+        date: transferData.date,
+        amount: Number(transferData.amount),
+        fromWallet: transferData.fromWallet,
+        toWallet: transferData.toWallet,
+        note: transferData.note || ""
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
+   * Tambah Dompet Baru
+   */
+  async addWallet(walletData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "addWallet",
+      data: {
+        name: walletData.name.trim(),
+        initialBalance: Number(walletData.initialBalance) || 0
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
+   * Tambah Kategori Baru
+   */
+  async addCategory(categoryData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "addCategory",
+      data: {
+        type: categoryData.type,
+        name: categoryData.name.trim()
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
+   * Update Transaksi
    */
   async updateTransaction(type, rowIndex, updatedData) {
-    const scriptUrl = APP_CONFIG.getScriptUrl();
-    const check = this.validateUrl(scriptUrl);
-    if (!check.valid) throw new Error(check.message);
-
     const payload = {
       token: APP_CONFIG.getSecretToken(),
       action: "update",
       type: type,
       rowIndex: rowIndex,
-      data: {
-        date: updatedData.date,
-        amount: Number(updatedData.amount),
-        category: updatedData.category,
-        note: updatedData.note || "",
-        source: updatedData.source || updatedData.category || ""
-      }
+      data: updatedData
     };
-
     return this.postRequest(payload);
   },
 
   /**
-   * Menghapus baris transaksi dari spreadsheet
+   * Hapus Transaksi (Pemasukan / Pengeluaran / Transfer)
    */
   async deleteTransaction(type, rowIndex) {
-    const scriptUrl = APP_CONFIG.getScriptUrl();
-    const check = this.validateUrl(scriptUrl);
-    if (!check.valid) throw new Error(check.message);
-
     const payload = {
       token: APP_CONFIG.getSecretToken(),
       action: "delete",
       type: type,
       rowIndex: rowIndex
     };
-
     return this.postRequest(payload);
   },
 
-  /**
-   * Helper pengiriman POST request yang aman dari CORS preflight
-   */
   async postRequest(payload) {
     const scriptUrl = APP_CONFIG.getScriptUrl();
+    const check = this.validateUrl(scriptUrl);
+    if (!check.valid) throw new Error(check.message);
 
     try {
       const response = await fetch(scriptUrl, {
         method: "POST",
         body: JSON.stringify(payload),
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         redirect: "follow"
       });
 

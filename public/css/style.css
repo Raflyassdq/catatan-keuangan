@@ -248,6 +248,113 @@ button {
 }
 
 /* ==========================================================================
+   Wallets Carousel (Multi-Wallet)
+   ========================================================================== */
+.wallets-section {
+  margin-top: 14px;
+  margin-bottom: 20px;
+}
+
+.wallets-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.wallets-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.btn-add-wallet-trigger {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.wallets-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 0 10px 0;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wallets-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.wallet-card {
+  flex: 0 0 148px;
+  min-width: 148px;
+  scroll-snap-align: start;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.wallet-card:hover {
+  border-color: var(--color-primary);
+}
+
+.wallet-card:active {
+  transform: scale(0.98);
+}
+
+.wallet-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wallet-card-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.wallet-card-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wallet-card-balance {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  letter-spacing: -0.02em;
+}
+
+/* ==========================================================================
    Filter Pills & Date Selectors
    ========================================================================== */
 .filter-bar {
@@ -687,10 +794,10 @@ button {
   color: var(--color-text-muted);
 }
 
-/* Type Toggle (Pemasukan / Pengeluaran) */
+/* Type Toggle (Pemasukan / Pengeluaran / Pindah Dana) */
 .type-toggle-wrapper {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   background-color: var(--color-bg);
   padding: 4px;
   border-radius: var(--radius-md);
@@ -701,7 +808,7 @@ button {
 .type-toggle-btn {
   height: 36px;
   border-radius: var(--radius-sm);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--color-text-muted);
   transition: all 0.2s ease;
@@ -717,6 +824,35 @@ button {
   background-color: var(--color-surface);
   color: var(--color-income);
   box-shadow: var(--shadow-sm);
+}
+
+.type-toggle-btn.active.transfer {
+  background-color: var(--color-surface);
+  color: #2563EB;
+  box-shadow: var(--shadow-sm);
+}
+
+.transaction-type-badge.transfer {
+  background-color: #EFF6FF;
+  color: #2563EB;
+}
+
+.label-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.btn-inline-link {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
 }
 
 /* Form Groups */
