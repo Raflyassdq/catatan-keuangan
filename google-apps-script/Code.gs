@@ -48,17 +48,17 @@ function setupSheets() {
   if (walletSheet.getLastRow() === 0) {
     walletSheet.appendRow(["Nama Dompet", "Saldo Awal"]);
     formatHeader(walletSheet, 2);
-    // Default Wallets sesuai akun riil
+    // Default Wallets sesuai akun riil (saldo awal 0)
     const defaults = [
-      ["CASH", 12500],
-      ["BRI", 333037],
-      ["BSI", 43735],
-      ["TABUNGAN JAGO", 6223299],
-      ["DANA", 5321],
-      ["GOPAY", 33669],
-      ["SHOPEEPAY", -23275],
-      ["DEBITUR", 803143],
-      ["RDN", 397546]
+      ["CASH", 0],
+      ["BRI", 0],
+      ["BSI", 0],
+      ["TABUNGAN JAGO", 0],
+      ["DANA", 0],
+      ["GOPAY", 0],
+      ["SHOPEEPAY", 0],
+      ["DEBITUR", 0],
+      ["RDN", 0]
     ];
     defaults.forEach(w => walletSheet.appendRow(w));
   }
@@ -204,6 +204,28 @@ function doPost(e) {
       const data = payload.data;
       sheet.appendRow([data.name, Number(data.initialBalance || 0)]);
       return createJsonResponse({ status: "success", message: "Dompet berhasil ditambahkan" });
+    }
+
+    // 3b. UPDATE DOMPET (Ubah Saldo Awal / Nama)
+    if (action === "updateWallet") {
+      const sheet = ss.getSheetByName(CONFIG.SHEET_WALLET);
+      const data = payload.data;
+      const rowIndex = Number(payload.rowIndex);
+      if (rowIndex && rowIndex >= 2) {
+        sheet.getRange(rowIndex, 1, 1, 2).setValues([[data.name, Number(data.initialBalance || 0)]]);
+      } else {
+        const lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          const names = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+          for (let i = 0; i < names.length; i++) {
+            if (names[i][0] === data.name) {
+              sheet.getRange(i + 2, 2).setValue(Number(data.initialBalance || 0));
+              break;
+            }
+          }
+        }
+      }
+      return createJsonResponse({ status: "success", message: "Dompet berhasil diperbarui" });
     }
 
     // 4. TAMBAH KATEGORI BARU

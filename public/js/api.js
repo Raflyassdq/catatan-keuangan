@@ -169,6 +169,22 @@ const API = {
   },
 
   /**
+   * Update Saldo Awal / Nama Dompet
+   */
+  async updateWallet(walletData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "updateWallet",
+      rowIndex: walletData.rowIndex,
+      data: {
+        name: walletData.name.trim(),
+        initialBalance: Number(walletData.initialBalance) || 0
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
    * Tambah Kategori Baru
    */
   async addCategory(categoryData) {

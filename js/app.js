@@ -19,6 +19,7 @@
     isEditing: false,
     editingType: "Pengeluaran",
     editingRowIndex: null,
+    editingWallet: null,
     chartDonut: null,
     chartBar: null
   };
@@ -116,6 +117,14 @@
     inputWalletInitial: document.getElementById("input-wallet-initial"),
     btnSubmitWallet: document.getElementById("btn-submit-wallet"),
 
+    // Modal Edit Dompet (Atur Saldo Awal)
+    modalEditWallet: document.getElementById("modal-edit-wallet"),
+    btnCloseEditWallet: document.getElementById("btn-close-edit-wallet"),
+    formEditWallet: document.getElementById("form-edit-wallet"),
+    editWalletName: document.getElementById("edit-wallet-name"),
+    editWalletInitial: document.getElementById("edit-wallet-initial"),
+    btnSubmitEditWallet: document.getElementById("btn-submit-edit-wallet"),
+
     // Modal Tambah Kategori
     modalAddCategory: document.getElementById("modal-add-category"),
     btnCloseAddCat: document.getElementById("btn-close-add-cat"),
@@ -153,7 +162,10 @@
   }
 
   function parseRupiahInput(str) {
-    return Number(String(str).replace(/[^0-9]/g, "")) || 0;
+    if (!str) return 0;
+    const isNeg = String(str).trim().startsWith("-");
+    const num = Number(String(str).replace(/[^0-9]/g, "")) || 0;
+    return isNeg ? -num : num;
   }
 
   function formatDateForSheet(dateObj) {
@@ -452,11 +464,14 @@
         <div class="wallet-card-balance" style="${w.currentBalance < 0 ? 'color: var(--color-expense);' : ''}">${formatRupiah(w.currentBalance)}</div>
       `;
 
-      // Klik kartu dompet untuk memfilter riwayat sesuai dompet ini
+      // Klik kartu dompet untuk mengatur nama atau saldo awal
       card.addEventListener("click", () => {
-        DOM.inputSearch.value = w.name;
-        state.searchQuery = w.name;
-        switchView("history");
+        state.editingWallet = w;
+        DOM.editWalletName.value = w.name;
+        const initial = w.initialBalance || 0;
+        DOM.editWalletInitial.value = (initial < 0 ? "-" : "") + Math.abs(initial).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        openModal(DOM.modalEditWallet);
+        setTimeout(() => DOM.editWalletInitial.focus(), 150);
       });
 
       DOM.walletsCarousel.appendChild(card);
@@ -1095,15 +1110,53 @@
     DOM.btnCloseTxModal.addEventListener("click", () => closeModal(DOM.modalTx));
     DOM.btnCloseDetailModal.addEventListener("click", () => closeModal(DOM.modalDetail));
     DOM.btnCloseAddWallet.addEventListener("click", () => closeModal(DOM.modalAddWallet));
+    DOM.btnCloseEditWallet.addEventListener("click", () => closeModal(DOM.modalEditWallet));
     DOM.btnCloseAddCat.addEventListener("click", () => closeModal(DOM.modalAddCategory));
     DOM.btnCloseDelModal.addEventListener("click", () => closeModal(DOM.modalConfirmDelete));
     DOM.btnCancelDelete.addEventListener("click", () => closeModal(DOM.modalConfirmDelete));
     DOM.btnCloseSettingsModal.addEventListener("click", () => closeModal(DOM.modalSettings));
 
+    // Input format saldo awal saat edit dompet
+    DOM.editWalletInitial.addEventListener("input", (e) => {
+      const isNeg = e.target.value.trim().startsWith("-");
+      const raw = Math.abs(parseRupiahInput(e.target.value));
+      const formatted = raw === 0 ? "" : raw.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      e.target.value = (isNeg ? "-" : "") + formatted;
+    });
+
+    // Form Submit Edit Dompet
+    DOM.formEditWallet.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!state.editingWallet) return;
+
+      const name = DOM.editWalletName.value.trim();
+      const initialBal = parseRupiahInput(DOM.editWalletInitial.value);
+
+      DOM.btnSubmitEditWallet.disabled = true;
+      DOM.btnSubmitEditWallet.querySelector("span").textContent = "Menyimpan...";
+
+      try {
+        await API.updateWallet({
+          rowIndex: state.editingWallet.rowIndex,
+          name: name,
+          initialBalance: initialBal
+        });
+        showToast(`Saldo awal '${name}' berhasil disimpan!`, "success");
+        closeModal(DOM.modalEditWallet);
+        await loadData();
+      } catch (err) {
+        showToast(err.message || "Gagal memperbarui dompet", "error");
+      } finally {
+        DOM.btnSubmitEditWallet.disabled = false;
+        DOM.btnSubmitEditWallet.querySelector("span").textContent = "Simpan Saldo";
+      }
+    });
+
     [
       DOM.modalTx,
       DOM.modalDetail,
       DOM.modalAddWallet,
+      DOM.modalEditWallet,
       DOM.modalAddCategory,
       DOM.modalConfirmDelete,
       DOM.modalSettings
@@ -1164,6 +1217,7 @@
         closeModal(DOM.modalTx);
         closeModal(DOM.modalDetail);
         closeModal(DOM.modalAddWallet);
+        closeModal(DOM.modalEditWallet);
         closeModal(DOM.modalAddCategory);
         closeModal(DOM.modalConfirmDelete);
         closeModal(DOM.modalSettings);
