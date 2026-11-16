@@ -26,7 +26,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=6">
+  <link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
 
@@ -103,6 +103,26 @@
           </div>
           <div id="wallets-carousel" class="wallets-carousel" aria-label="Daftar Saldo Dompet">
             <!-- Di-render dinamis oleh app.js -->
+          </div>
+        </div>
+
+        <!-- Section: Ringkasan Hutang & Piutang -->
+        <div id="card-debts-summary" class="debts-summary-card" role="button" tabindex="0" aria-label="Buka Daftar Hutang dan Piutang">
+          <div class="debts-summary-header">
+            <h3 class="debts-summary-title">Hutang & Piutang</h3>
+            <button id="btn-trigger-add-debt" class="btn-add-wallet-trigger" type="button" aria-label="Catat Hutang atau Piutang Baru">
+              <span>+ Catat</span>
+            </button>
+          </div>
+          <div class="debts-summary-grid">
+            <div class="debt-stat-col">
+              <span class="debt-stat-label">Piutang (Uang di Luar)</span>
+              <span id="summary-total-receivables" class="debt-stat-amount receivable">Rp 0</span>
+            </div>
+            <div class="debt-stat-col">
+              <span class="debt-stat-label">Hutang (Kewajiban)</span>
+              <span id="summary-total-payables" class="debt-stat-amount payable">Rp 0</span>
+            </div>
           </div>
         </div>
 
@@ -536,9 +556,153 @@
     </div>
   </div>
 
+  <!-- ================= MODAL: DAFTAR HUTANG & PIUTANG ================= -->
+  <div id="modal-debts-list" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-debts-title">
+    <div class="modal-sheet" style="max-height: 88dvh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h2 id="modal-debts-title" class="modal-title">Hutang & Piutang</h2>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="btn-modal-add-debt" class="btn-add-wallet-trigger" type="button" style="padding: 4px 10px; font-size: 0.8rem;">
+            <span>+ Baru</span>
+          </button>
+          <button id="btn-close-debts-list" class="modal-close-btn" aria-label="Tutup Daftar Hutang Piutang">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" x2="6" y1="6" y2="18"/>
+              <line x1="6" x2="18" y1="6" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Bar: Tab Filter Jenis & Status -->
+      <div class="filter-bar" style="margin-bottom: 12px; overflow-x: auto; flex-shrink: 0; padding-bottom: 4px;">
+        <button class="filter-pill active" data-debt-filter="all">Semua</button>
+        <button class="filter-pill" data-debt-filter="unpaid">Belum Lunas</button>
+        <button class="filter-pill" data-debt-filter="receivable">Piutang</button>
+        <button class="filter-pill" data-debt-filter="payable">Hutang</button>
+        <button class="filter-pill" data-debt-filter="paid">Lunas</button>
+      </div>
+
+      <!-- Container Item List (Scrollable) -->
+      <div id="debts-items-container" class="debts-list" style="overflow-y: auto; flex: 1; padding-bottom: 24px;">
+        <!-- Di-render dinamis oleh app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CATAT HUTANG / PIUTANG BARU ================= -->
+  <div id="modal-add-debt" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-add-debt-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-add-debt-title" class="modal-title">Catat Hutang / Piutang</h2>
+        <button id="btn-close-add-debt" class="modal-close-btn" aria-label="Tutup Form">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-add-debt">
+        <div class="form-group">
+          <label for="select-debt-type" class="form-label">Jenis</label>
+          <select id="select-debt-type" class="form-select" required>
+            <option value="Piutang">Piutang (Orang lain berhutang ke saya)</option>
+            <option value="Hutang">Hutang (Saya berhutang ke orang lain)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="input-debt-person" class="form-label">Nama Pihak / Teman</label>
+          <input type="text" id="input-debt-person" class="form-input" placeholder="Contoh: Budi, Kantor, Bank..." required>
+        </div>
+
+        <div class="form-group">
+          <label for="input-debt-amount" class="form-label">Nominal (Rp)</label>
+          <input type="text" id="input-debt-amount" class="form-input" inputmode="numeric" placeholder="0" required autocomplete="off">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="input-debt-date" class="form-label">Tanggal Transaksi</label>
+            <input type="date" id="input-debt-date" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label for="input-debt-due-date" class="form-label">Jatuh Tempo (Opsional)</label>
+            <input type="date" id="input-debt-due-date" class="form-input">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="input-debt-note" class="form-label">Catatan / Keterangan</label>
+          <input type="text" id="input-debt-note" class="form-input" placeholder="Contoh: Pinjaman modal, patungan makan...">
+        </div>
+
+        <button type="submit" id="btn-submit-debt" class="btn-submit">
+          <span>Simpan Data</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: PELUNASAN / CICIL HUTANG & PIUTANG ================= -->
+  <div id="modal-pay-debt" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-pay-debt-title">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2 id="modal-pay-debt-title" class="modal-title">Pelunasan / Cicil</h2>
+        <button id="btn-close-pay-debt" class="modal-close-btn" aria-label="Tutup Pelunasan">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-pay-debt">
+        <input type="hidden" id="input-pay-debt-row-index">
+        <input type="hidden" id="input-pay-debt-type">
+
+        <div id="pay-debt-info-box" style="background-color: var(--color-bg); padding: 12px 14px; border-radius: var(--radius-md); margin-bottom: 16px; border: 1px solid var(--color-border);">
+          <div id="pay-debt-person-label" style="font-weight: 700; font-size: 0.95rem; color: var(--color-text-main);">Nama Pihak</div>
+          <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 0.84rem; color: var(--color-text-muted);">
+            <span>Sisa yang harus diselesaikan:</span>
+            <span id="pay-debt-remaining-label" style="font-weight: 700; color: var(--color-text-main);">Rp 0</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="input-pay-debt-amount" class="form-label">Nominal Pembayaran (Rp)</label>
+          <input type="text" id="input-pay-debt-amount" class="form-input" inputmode="numeric" placeholder="0" required autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label for="select-pay-debt-wallet" class="form-label">Dompet Kas Terkait</label>
+          <select id="select-pay-debt-wallet" class="form-select" required>
+            <!-- Diisi dompet aktif -->
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="input-pay-debt-date" class="form-label">Tanggal Bayar</label>
+            <input type="date" id="input-pay-debt-date" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label for="input-pay-debt-note" class="form-label">Catatan</label>
+            <input type="text" id="input-pay-debt-note" class="form-input" placeholder="Contoh: Cicilan ke-1">
+          </div>
+        </div>
+
+        <button type="submit" id="btn-submit-pay-debt" class="btn-submit">
+          <span>Catat Pelunasan</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Core Scripts -->
-  <script src="js/config.js?v=6"></script>
-  <script src="js/api.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/config.js?v=7"></script>
+  <script src="js/api.js?v=7"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

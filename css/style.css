@@ -355,6 +355,203 @@ button {
 }
 
 /* ==========================================================================
+   Hutang & Piutang Summary & Cards
+   ========================================================================== */
+.debts-summary-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.debts-summary-card:hover {
+  border-color: var(--color-primary);
+}
+
+.debts-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.debts-summary-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.debts-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
+
+.debt-stat-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.debt-stat-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.debt-stat-amount {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  letter-spacing: -0.02em;
+}
+
+.debt-stat-amount.receivable {
+  color: var(--color-income);
+}
+
+.debt-stat-amount.payable {
+  color: var(--color-expense);
+}
+
+/* Debts List Item & Progress */
+.debts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.debt-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.debt-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.debt-person-name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.debt-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.badge-tag.receivable {
+  background-color: var(--color-income-light);
+  color: var(--color-income);
+}
+
+.badge-tag.payable {
+  background-color: var(--color-expense-light);
+  color: var(--color-expense);
+}
+
+.badge-tag.paid {
+  background-color: #E2E8F0;
+  color: #475569;
+}
+
+.badge-tag.unpaid {
+  background-color: #FEF3C7;
+  color: #B45309;
+}
+
+.debt-progress-wrapper {
+  width: 100%;
+  height: 6px;
+  background-color: var(--color-bg);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.debt-progress-bar {
+  height: 100%;
+  background-color: var(--color-income);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.debt-progress-bar.payable {
+  background-color: var(--color-expense);
+}
+
+.debt-numbers-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.debt-remaining {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--color-text-main);
+}
+
+.debt-meta-info {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}
+
+.debt-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-pay-action {
+  flex: 1;
+  height: 38px;
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete-debt {
+  width: 38px;
+  height: 38px;
+  background-color: var(--color-bg);
+  color: #EF4444;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================================================
    Filter Pills & Date Selectors
    ========================================================================== */
 .filter-bar {

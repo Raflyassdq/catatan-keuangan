@@ -200,6 +200,55 @@ const API = {
   },
 
   /**
+   * Tambah Hutang / Piutang Baru
+   */
+  async addDebt(debtData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "addDebt",
+      data: {
+        date: debtData.date,
+        type: debtData.type, // "Hutang" atau "Piutang"
+        person: debtData.person.trim(),
+        amount: Number(debtData.amount),
+        dueDate: debtData.dueDate || "",
+        note: debtData.note || ""
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
+   * Pelunasan / Cicil Hutang & Piutang (Update hutang + Catat kas di dompet)
+   */
+  async payDebt(payData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "payDebt",
+      rowIndex: payData.rowIndex,
+      data: {
+        payAmount: Number(payData.payAmount),
+        wallet: payData.wallet || "CASH",
+        date: payData.date,
+        note: payData.note || ""
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
+   * Hapus Data Hutang / Piutang
+   */
+  async deleteDebt(rowIndex) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "deleteDebt",
+      rowIndex: rowIndex
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
    * Update Transaksi
    */
   async updateTransaction(type, rowIndex, updatedData) {
