@@ -48,14 +48,17 @@ function setupSheets() {
   if (walletSheet.getLastRow() === 0) {
     walletSheet.appendRow(["Nama Dompet", "Saldo Awal"]);
     formatHeader(walletSheet, 2);
-    // Default Wallets
+    // Default Wallets sesuai akun riil
     const defaults = [
-      ["Cash", 0],
-      ["Bank 1", 0],
-      ["Bank 2", 0],
-      ["GoPay", 0],
-      ["ShopeePay", 0],
-      ["DANA", 0]
+      ["CASH", 12500],
+      ["BRI", 333037],
+      ["BSI", 43735],
+      ["TABUNGAN JAGO", 6223299],
+      ["DANA", 5321],
+      ["GOPAY", 33669],
+      ["SHOPEEPAY", -23275],
+      ["DEBITUR", 803143],
+      ["RDN", 397546]
     ];
     defaults.forEach(w => walletSheet.appendRow(w));
   }

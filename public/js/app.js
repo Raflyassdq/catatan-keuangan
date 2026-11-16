@@ -145,8 +145,11 @@
    * Helper Format Rupiah
    */
   function formatRupiah(number) {
-    const val = Math.round(Number(number) || 0);
-    return "Rp " + val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const num = Math.round(Number(number) || 0);
+    const isNegative = num < 0;
+    const abs = Math.abs(num);
+    const formatted = abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return (isNegative ? "-Rp " : "Rp ") + formatted;
   }
 
   function parseRupiahInput(str) {
@@ -446,7 +449,7 @@
           <div class="wallet-card-icon" aria-hidden="true">${iconText}</div>
           <span class="wallet-card-name">${w.name}</span>
         </div>
-        <div class="wallet-card-balance">${formatRupiah(w.currentBalance)}</div>
+        <div class="wallet-card-balance" style="${w.currentBalance < 0 ? 'color: var(--color-expense);' : ''}">${formatRupiah(w.currentBalance)}</div>
       `;
 
       // Klik kartu dompet untuk memfilter riwayat sesuai dompet ini
