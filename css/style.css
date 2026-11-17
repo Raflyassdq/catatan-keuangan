@@ -604,12 +604,56 @@ button {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .section-title {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-main);
+}
+
+/* Mini Toggle untuk Kategori Donut (Pengeluaran / Pemasukan) */
+.chart-type-toggle {
+  display: inline-flex;
+  background-color: var(--color-bg);
+  padding: 3px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  gap: 2px;
+}
+
+.chart-toggle-btn {
+  padding: 5px 12px;
+  min-height: 30px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-toggle-btn:hover {
+  color: var(--color-text-main);
+}
+
+.chart-toggle-btn.active.expense {
+  background-color: var(--color-surface);
+  color: var(--color-expense);
+  box-shadow: 0 1px 4px rgba(26, 26, 46, 0.08);
+}
+
+.chart-toggle-btn.active.income {
+  background-color: var(--color-surface);
+  color: var(--color-income);
+  box-shadow: 0 1px 4px rgba(26, 26, 46, 0.08);
 }
 
 .chart-wrapper {

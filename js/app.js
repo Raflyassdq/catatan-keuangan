@@ -15,6 +15,7 @@
     debts: [],
     debtFilter: "all",
     activePayingDebt: null,
+    donutCategoryType: "Pengeluaran",
     selectedPeriod: "this-month",
     historyTypeFilter: "all",
     searchQuery: "",
@@ -57,9 +58,14 @@
     dailyAverage: document.getElementById("insight-daily-average"),
 
     // Charts & States
+    chartCategoryTitle: document.getElementById("chart-category-title"),
+    btnChartExpense: document.getElementById("btn-chart-expense"),
+    btnChartIncome: document.getElementById("btn-chart-income"),
     chartCategoryCanvas: document.getElementById("chart-category-donut"),
     chartComparisonCanvas: document.getElementById("chart-comparison-bar"),
     chartDonutEmpty: document.getElementById("chart-donut-empty"),
+    chartDonutEmptyTitle: document.getElementById("chart-donut-empty-title"),
+    chartDonutEmptyDesc: document.getElementById("chart-donut-empty-desc"),
     chartBarEmpty: document.getElementById("chart-bar-empty"),
 
     // Riwayat
@@ -804,16 +810,19 @@
 
     let totalInc = 0;
     let totalExp = 0;
-    const categoryTotals = {};
+    const categoryExpenseTotals = {};
+    const categoryIncomeTotals = {};
 
     filtered.forEach((tx) => {
       const amt = Number(tx.amount) || 0;
       if (tx.type === "Pemasukan") {
         totalInc += amt;
+        const cat = tx.category || "Lain-lain";
+        categoryIncomeTotals[cat] = (categoryIncomeTotals[cat] || 0) + amt;
       } else if (tx.type === "Pengeluaran") {
         totalExp += amt;
         const cat = tx.category || "Lain-lain";
-        categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
+        categoryExpenseTotals[cat] = (categoryExpenseTotals[cat] || 0) + amt;
       }
     });
 
@@ -829,7 +838,7 @@
     DOM.periodText.textContent = `Periode: ${periodLabels[state.selectedPeriod] || "Bulan Ini"}`;
 
     // Insights
-    const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+    const sortedCategories = Object.entries(categoryExpenseTotals).sort((a, b) => b[1] - a[1]);
     if (sortedCategories.length > 0) {
       DOM.topExpense.textContent = `${sortedCategories[0][0]} (${formatRupiah(sortedCategories[0][1])})`;
     } else {
@@ -846,11 +855,32 @@
     const avgDaily = Math.round(totalExp / divisor);
     DOM.dailyAverage.textContent = totalExp > 0 ? `${formatRupiah(avgDaily)} / hari` : "Rp 0 / hari";
 
-    renderCategoryDonut(categoryTotals, totalExp);
+    // Toggle Kategori Donut (Pengeluaran vs Pemasukan)
+    const isIncomeTab = state.donutCategoryType === "Pemasukan";
+    if (DOM.chartCategoryTitle) {
+      DOM.chartCategoryTitle.textContent = isIncomeTab ? "Kategori Pemasukan" : "Kategori Pengeluaran";
+    }
+
+    if (DOM.btnChartExpense && DOM.btnChartIncome) {
+      if (isIncomeTab) {
+        DOM.btnChartIncome.classList.add("active");
+        DOM.btnChartExpense.classList.remove("active");
+      } else {
+        DOM.btnChartExpense.classList.add("active");
+        DOM.btnChartIncome.classList.remove("active");
+      }
+    }
+
+    if (isIncomeTab) {
+      renderCategoryDonut("Pemasukan", categoryIncomeTotals, totalInc);
+    } else {
+      renderCategoryDonut("Pengeluaran", categoryExpenseTotals, totalExp);
+    }
+
     renderComparisonBar(totalInc, totalExp);
   }
 
-  function renderCategoryDonut(categoryTotals, totalExp) {
+  function renderCategoryDonut(type, categoryTotals, totalAmount) {
     if (state.chartDonut) {
       state.chartDonut.destroy();
       state.chartDonut = null;
@@ -859,19 +889,35 @@
     const labels = Object.keys(categoryTotals);
     const dataValues = Object.values(categoryTotals);
 
-    if (labels.length === 0 || totalExp === 0) {
+    if (labels.length === 0 || totalAmount === 0) {
       DOM.chartCategoryCanvas.style.display = "none";
       DOM.chartDonutEmpty.style.display = "flex";
+      if (DOM.chartDonutEmptyTitle) {
+        DOM.chartDonutEmptyTitle.textContent = type === "Pemasukan" ? "Belum ada pemasukan" : "Belum ada pengeluaran";
+      }
+      if (DOM.chartDonutEmptyDesc) {
+        DOM.chartDonutEmptyDesc.textContent = type === "Pemasukan"
+          ? "Belum ada data pemasukan pada periode yang dipilih."
+          : "Belum ada data pengeluaran pada periode yang dipilih.";
+      }
       return;
     }
 
     DOM.chartCategoryCanvas.style.display = "block";
     DOM.chartDonutEmpty.style.display = "none";
 
-    const palette = [
+    // Palet warna pengeluaran (Dusty Rose dkk) vs pemasukan (Emerald & Sage Green)
+    const expensePalette = [
       "#E8829A", "#F2B5C5", "#E5A99B", "#F6D2C9",
       "#C5A3B8", "#A3C4BC", "#BFD8D2", "#DFCCF1"
     ];
+
+    const incomePalette = [
+      "#16A34A", "#10B981", "#34D399", "#2DD4BF",
+      "#059669", "#6EE7B7", "#0D9488", "#14B8A6"
+    ];
+
+    const palette = type === "Pemasukan" ? incomePalette : expensePalette;
 
     const ctx = DOM.chartCategoryCanvas.getContext("2d");
     state.chartDonut = new Chart(ctx, {
@@ -897,7 +943,7 @@
             callbacks: {
               label: function (ctx) {
                 const val = ctx.raw || 0;
-                const pct = ((val / totalExp) * 100).toFixed(1);
+                const pct = totalAmount > 0 ? ((val / totalAmount) * 100).toFixed(1) : 0;
                 return ` ${ctx.label}: ${formatRupiah(val)} (${pct}%)`;
               }
             }
@@ -1184,6 +1230,25 @@
         renderDashboard();
       });
     });
+
+    // Toggle Kategori Grafik Donut (Pengeluaran / Pemasukan)
+    if (DOM.btnChartExpense) {
+      DOM.btnChartExpense.addEventListener("click", () => {
+        if (state.donutCategoryType !== "Pengeluaran") {
+          state.donutCategoryType = "Pengeluaran";
+          renderDashboard();
+        }
+      });
+    }
+
+    if (DOM.btnChartIncome) {
+      DOM.btnChartIncome.addEventListener("click", () => {
+        if (state.donutCategoryType !== "Pemasukan") {
+          state.donutCategoryType = "Pemasukan";
+          renderDashboard();
+        }
+      });
+    }
 
     // Search & Filter Riwayat
     DOM.inputSearch.addEventListener("input", (e) => {
