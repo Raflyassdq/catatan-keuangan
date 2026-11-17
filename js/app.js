@@ -26,6 +26,7 @@
     editingType: "Pengeluaran",
     editingRowIndex: null,
     editingWallet: null,
+    activeCatType: "Pengeluaran",
     chartDonut: null,
     chartBar: null
   };
@@ -143,13 +144,17 @@
     btnSubmitEditWallet: document.getElementById("btn-submit-edit-wallet"),
     btnDeleteWallet: document.getElementById("btn-delete-wallet"),
 
-    // Modal Tambah Kategori
+    // Modal Kelola Kategori
     modalAddCategory: document.getElementById("modal-add-category"),
     btnCloseAddCat: document.getElementById("btn-close-add-cat"),
     formAddCategory: document.getElementById("form-add-category"),
     selectCatType: document.getElementById("select-cat-type"),
     inputCategoryName: document.getElementById("input-category-name"),
     btnSubmitCategory: document.getElementById("btn-submit-category"),
+    tabCatExpense: document.getElementById("tab-cat-expense"),
+    tabCatIncome: document.getElementById("tab-cat-income"),
+    categoriesManageList: document.getElementById("categories-manage-list"),
+    catListCount: document.getElementById("cat-list-count"),
 
     // Modal Hapus
     modalConfirmDelete: document.getElementById("modal-confirm-delete"),
@@ -163,6 +168,7 @@
     formSettings: document.getElementById("form-settings"),
     settingsScriptUrl: document.getElementById("settings-script-url"),
     settingsSecretToken: document.getElementById("settings-secret-token"),
+    btnSettingsManageCategories: document.getElementById("btn-settings-manage-categories"),
 
     // Debts Summary Card & Dashboard Triggers
     cardDebtsSummary: document.getElementById("card-debts-summary"),
@@ -584,7 +590,94 @@
         renderWalletReorderList();
       }
     } catch (err) {
-      showToast(err.message || "Gagal menghapus dompet", "error");
+      const msg = String(err.message || err);
+      if (msg.includes("Action tidak dikenali")) {
+        showToast("Google Script belum diperbarui ke versi baru. Silakan ikuti panduan deploy.", "error", 7000);
+      } else {
+        showToast(msg || "Gagal menghapus dompet", "error");
+      }
+    }
+  }
+
+  /**
+   * Render Daftar Kategori di Modal Kelola Kategori
+   */
+  function renderCategoriesManageList() {
+    if (!DOM.categoriesManageList) return;
+    DOM.categoriesManageList.innerHTML = "";
+
+    const currentType = state.activeCatType || "Pengeluaran";
+    const filtered = (state.categories || []).filter((c) => c.type === currentType);
+
+    if (DOM.catListCount) {
+      DOM.catListCount.textContent = filtered.length;
+    }
+
+    if (filtered.length === 0) {
+      DOM.categoriesManageList.innerHTML = `
+        <div style="text-align: center; padding: 24px; color: var(--color-text-muted); font-size: 0.85rem;">
+          Belum ada kategori ${currentType}.
+        </div>
+      `;
+      return;
+    }
+
+    filtered.forEach((cat) => {
+      const item = document.createElement("div");
+      item.className = "category-manage-item";
+      item.innerHTML = `
+        <span class="category-manage-name">${escapeHtml(cat.name)}</span>
+        <button type="button" class="btn-del-cat" title="Hapus kategori ${escapeHtml(cat.name)}" aria-label="Hapus kategori ${escapeHtml(cat.name)}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      `;
+
+      const btnDel = item.querySelector(".btn-del-cat");
+      btnDel.addEventListener("click", () => handleDeleteCategory(cat));
+      DOM.categoriesManageList.appendChild(item);
+    });
+  }
+
+  /**
+   * Hapus Kategori (Google Sheets & Local State)
+   */
+  async function handleDeleteCategory(cat) {
+    if (!cat) return;
+
+    if (cat.name === "Bayar Utang" || cat.name === "Pelunasan Piutang") {
+      if (!confirm(`Kategori "${cat.name}" terhubung otomatis dengan fitur pencatatan Utang/Piutang. Apakah Anda tetap ingin menghapusnya?`)) {
+        return;
+      }
+    } else {
+      if (!confirm(`Apakah Anda yakin ingin menghapus kategori "${cat.name}" (${cat.type})?`)) {
+        return;
+      }
+    }
+
+    try {
+      showToast(`Menghapus kategori '${cat.name}'...`, "info");
+      await API.deleteCategory({
+        rowIndex: cat.rowIndex,
+        type: cat.type,
+        name: cat.name
+      });
+
+      state.categories = state.categories.filter((c) => !(c.name === cat.name && c.type === cat.type));
+      showToast(`Kategori '${cat.name}' berhasil dihapus!`, "success");
+      renderCategoriesManageList();
+      populateCategories(state.editingType || state.activeCatType || "Pengeluaran");
+      await loadData();
+      renderCategoriesManageList();
+    } catch (err) {
+      const msg = String(err.message || err);
+      if (msg.includes("Action tidak dikenali")) {
+        showToast("Google Script belum diperbarui ke versi baru. Silakan ikuti panduan deploy.", "error", 7000);
+      } else {
+        showToast(msg || "Gagal menghapus kategori", "error");
+      }
     }
   }
 
@@ -1102,11 +1195,11 @@
       const amt = Number(tx.amount) || 0;
       if (tx.type === "Pemasukan") {
         totalInc += amt;
-        const cat = tx.category || "Lain-lain";
+        const cat = tx.category || "Umum";
         categoryIncomeTotals[cat] = (categoryIncomeTotals[cat] || 0) + amt;
       } else if (tx.type === "Pengeluaran") {
         totalExp += amt;
-        const cat = tx.category || "Lain-lain";
+        const cat = tx.category || "Umum";
         categoryExpenseTotals[cat] = (categoryExpenseTotals[cat] || 0) + amt;
       }
     });
@@ -1474,9 +1567,15 @@
 
     try {
       const data = await API.fetchTransactions();
-      state.transactions = data.transactions || [];
+      state.transactions = (data.transactions || []).map((t) => ({
+        ...t,
+        category: t.category === "Transfer dari Keluarga" ? "Dari Keluarga" : t.category
+      }));
       state.wallets = data.wallets && data.wallets.length > 0 ? data.wallets : APP_CONFIG.DEFAULT_WALLETS;
-      state.categories = data.categories || [];
+      state.categories = (data.categories || []).map((c) => ({
+        ...c,
+        name: c.name === "Transfer dari Keluarga" ? "Dari Keluarga" : c.name
+      }));
       state.debts = data.debts || [];
 
       updateConnectionBadge();
@@ -1484,6 +1583,9 @@
       renderHistoryList();
       if (DOM.modalDebtsList && DOM.modalDebtsList.classList.contains("active")) {
         renderDebtsList();
+      }
+      if (DOM.modalAddCategory && DOM.modalAddCategory.classList.contains("active")) {
+        renderCategoriesManageList();
       }
       return true;
     } catch (error) {
@@ -1713,37 +1815,86 @@
       }
     });
 
-    // Tambah Kategori Baru Trigger & Form
-    DOM.btnTriggerAddCategory.addEventListener("click", () => {
+    // Kelola Kategori: Switcher Tab, Trigger & Form
+    function openManageCategoriesModal(initialType = "Pengeluaran") {
+      state.activeCatType = initialType;
       DOM.inputCategoryName.value = "";
-      DOM.selectCatType.value = state.editingType === "Pemasukan" ? "Pemasukan" : "Pengeluaran";
+      DOM.selectCatType.value = initialType;
+
+      if (DOM.tabCatExpense && DOM.tabCatIncome) {
+        if (initialType === "Pemasukan") {
+          DOM.tabCatIncome.classList.add("active");
+          DOM.tabCatExpense.classList.remove("active");
+        } else {
+          DOM.tabCatExpense.classList.add("active");
+          DOM.tabCatIncome.classList.remove("active");
+        }
+      }
+
+      renderCategoriesManageList();
       openModal(DOM.modalAddCategory);
       setTimeout(() => DOM.inputCategoryName.focus(), 150);
+    }
+
+    DOM.btnTriggerAddCategory.addEventListener("click", () => {
+      const type = state.editingType === "Pemasukan" ? "Pemasukan" : "Pengeluaran";
+      openManageCategoriesModal(type);
     });
+
+    if (DOM.btnSettingsManageCategories) {
+      DOM.btnSettingsManageCategories.addEventListener("click", () => {
+        closeModal(DOM.modalSettings);
+        openManageCategoriesModal("Pengeluaran");
+      });
+    }
+
+    if (DOM.tabCatExpense) {
+      DOM.tabCatExpense.addEventListener("click", () => {
+        state.activeCatType = "Pengeluaran";
+        DOM.selectCatType.value = "Pengeluaran";
+        DOM.tabCatExpense.classList.add("active");
+        DOM.tabCatIncome.classList.remove("active");
+        renderCategoriesManageList();
+      });
+    }
+
+    if (DOM.tabCatIncome) {
+      DOM.tabCatIncome.addEventListener("click", () => {
+        state.activeCatType = "Pemasukan";
+        DOM.selectCatType.value = "Pemasukan";
+        DOM.tabCatIncome.classList.add("active");
+        DOM.tabCatExpense.classList.remove("active");
+        renderCategoriesManageList();
+      });
+    }
 
     DOM.formAddCategory.addEventListener("submit", async (e) => {
       e.preventDefault();
       const name = DOM.inputCategoryName.value.trim();
-      const type = DOM.selectCatType.value;
+      const type = state.activeCatType || DOM.selectCatType.value || "Pengeluaran";
 
       if (!name) return;
 
       DOM.btnSubmitCategory.disabled = true;
-      DOM.btnSubmitCategory.querySelector("span").textContent = "Menyimpan...";
+      const btnSpan = DOM.btnSubmitCategory.querySelector("span");
+      if (btnSpan) btnSpan.textContent = "...";
 
       try {
         await API.addCategory({ type, name });
         showToast(`Kategori '${name}' berhasil ditambahkan!`, "success");
-        closeModal(DOM.modalAddCategory);
+        DOM.inputCategoryName.value = "";
         
         // Perbarui lokal dan pilih kategori baru tersebut di dropdown
         state.categories.push({ type, name });
+        renderCategoriesManageList();
         populateCategories(state.editingType, name);
+        await loadData();
+        renderCategoriesManageList();
       } catch (err) {
         showToast(err.message || "Gagal menambah kategori", "error");
       } finally {
         DOM.btnSubmitCategory.disabled = false;
-        DOM.btnSubmitCategory.querySelector("span").textContent = "Simpan Kategori";
+        if (btnSpan) btnSpan.textContent = "+ Tambah";
       }
     });
 

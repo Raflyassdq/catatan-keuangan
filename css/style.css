@@ -476,31 +476,31 @@ button {
 }
 
 .wallets-carousel {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding: 2px 0 10px 0;
-  scrollbar-width: none;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 2px 0 6px 0;
 }
 
-.wallets-carousel::-webkit-scrollbar {
-  display: none;
+@media (min-width: 560px) {
+  .wallets-carousel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .wallet-card {
-  flex: 0 0 148px;
-  min-width: 148px;
-  scroll-snap-align: start;
+  width: 100%;
+  min-width: 0;
   background-color: var(--color-surface);
   border-radius: var(--radius-md);
-  padding: 14px;
+  padding: 12px 14px;
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   transition: transform 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
 }
 
 .wallet-card:hover {
@@ -1510,4 +1510,82 @@ button {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ==========================================================================
+   Category Management Modal Styles
+   ========================================================================== */
+.category-tab-btn {
+  height: 38px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.category-tab-btn.active.expense {
+  background-color: var(--color-expense-light);
+  color: var(--color-expense);
+  border-color: rgba(232, 130, 154, 0.4);
+}
+
+.category-tab-btn.active.income {
+  background-color: var(--color-income-light);
+  color: var(--color-income);
+  border-color: rgba(91, 156, 230, 0.4);
+}
+
+.categories-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.category-manage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease;
+}
+
+.category-manage-item:hover {
+  border-color: var(--color-primary);
+}
+
+.category-manage-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.btn-del-cat {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-del-cat:hover {
+  background-color: var(--color-expense-light);
+  border-color: rgba(232, 130, 154, 0.35);
+  color: #EF4444;
+}
+
+.btn-del-cat:active {
+  transform: scale(0.92);
 }

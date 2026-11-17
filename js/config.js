@@ -21,8 +21,7 @@ const APP_CONFIG = {
   DEFAULT_INCOME_CATEGORIES: [
     "Gaji",
     "Bonus / Uang Lembur",
-    "Transfer dari Keluarga",
-    "Lain-lain"
+    "Dari Keluarga"
   ],
 
   DEFAULT_EXPENSE_CATEGORIES: [
@@ -34,8 +33,7 @@ const APP_CONFIG = {
     "Pakaian & Penampilan",
     "Pendidikan",
     "Tabungan / Investasi",
-    "Skincare & Kosmetik",
-    "Lain-lain"
+    "Skincare & Kosmetik"
   ],
 
   getScriptUrl() {

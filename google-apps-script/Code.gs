@@ -72,9 +72,8 @@ function setupSheets() {
     const defaultCategories = [
       ["Pemasukan", "Gaji"],
       ["Pemasukan", "Bonus / Uang Lembur"],
-      ["Pemasukan", "Transfer dari Keluarga"],
+      ["Pemasukan", "Dari Keluarga"],
       ["Pemasukan", "Pelunasan Piutang"],
-      ["Pemasukan", "Lain-lain"],
       ["Pengeluaran", "Makan & Minum"],
       ["Pengeluaran", "Transportasi"],
       ["Pengeluaran", "Belanja Kebutuhan Rumah"],
@@ -84,8 +83,7 @@ function setupSheets() {
       ["Pengeluaran", "Pendidikan"],
       ["Pengeluaran", "Tabungan / Investasi"],
       ["Pengeluaran", "Skincare & Kosmetik"],
-      ["Pengeluaran", "Bayar Utang"],
-      ["Pengeluaran", "Lain-lain"]
+      ["Pengeluaran", "Bayar Utang"]
     ];
     defaultCategories.forEach(c => categorySheet.appendRow(c));
   }
@@ -290,6 +288,49 @@ function doPost(e) {
       return createJsonResponse({ status: "success", message: "Kategori berhasil ditambahkan" });
     }
 
+    // 4b. HAPUS KATEGORI
+    if (action === "deleteCategory") {
+      const sheet = ss.getSheetByName(CONFIG.SHEET_CATEGORY);
+      const rowIndex = Number(payload.rowIndex);
+      const catName = payload.name || (payload.data && payload.data.name);
+      const catType = payload.type || (payload.data && payload.data.type);
+
+      let deleted = false;
+      if (rowIndex && rowIndex >= 2 && rowIndex <= sheet.getLastRow()) {
+        if (catName) {
+          const rowVal = sheet.getRange(rowIndex, 1, 1, 2).getValues()[0];
+          if (String(rowVal[1]).trim().toLowerCase() === String(catName).trim().toLowerCase()) {
+            sheet.deleteRow(rowIndex);
+            deleted = true;
+          }
+        } else {
+          sheet.deleteRow(rowIndex);
+          deleted = true;
+        }
+      }
+
+      if (!deleted && catName) {
+        const lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          const rows = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+          for (let i = 0; i < rows.length; i++) {
+            const rType = String(rows[i][0]).trim().toLowerCase();
+            const rName = String(rows[i][1]).trim().toLowerCase();
+            if (rName === String(catName).trim().toLowerCase() && (!catType || rType === String(catType).trim().toLowerCase())) {
+              sheet.deleteRow(i + 2);
+              deleted = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!deleted) {
+        return createJsonResponse({ status: "error", message: "Kategori tidak ditemukan di Google Sheets" });
+      }
+      return createJsonResponse({ status: "success", message: "Kategori berhasil dihapus" });
+    }
+
     // 5. TAMBAH UTANG / PIUTANG BARU
     if (action === "addDebt") {
       let sheet = getDebtSheet(ss);
@@ -470,7 +511,7 @@ function readSheetRows(sheet, type) {
       type: type,
       date: normalizeDate(row[0]),
       amount: Number(rawAmount) || 0,
-      category: String(row[2] || "Lain-lain"),
+      category: String(row[2] || ""),
       note: String(row[3] || ""),
       wallet: String(row[4] || "CASH"),
       source: String(row[4] || "CASH")
@@ -545,6 +586,7 @@ function readCategoryRows(sheet) {
     const name = String(values[i][1] || "").trim();
     if (!name) continue;
     results.push({
+      rowIndex: i + 2,
       type: type,
       name: name
     });

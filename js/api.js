@@ -216,6 +216,24 @@ const API = {
   },
 
   /**
+   * Hapus Kategori dari Google Sheets
+   */
+  async deleteCategory(categoryData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "deleteCategory",
+      rowIndex: categoryData.rowIndex,
+      type: categoryData.type,
+      name: categoryData.name,
+      data: {
+        type: categoryData.type,
+        name: categoryData.name
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
    * Tambah Utang / Piutang Baru
    */
   async addDebt(debtData) {
