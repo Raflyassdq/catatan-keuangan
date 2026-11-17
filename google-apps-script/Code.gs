@@ -242,6 +242,46 @@ function doPost(e) {
       return createJsonResponse({ status: "success", message: "Dompet berhasil diperbarui" });
     }
 
+    // 3c. HAPUS DOMPET
+    if (action === "deleteWallet") {
+      const sheet = ss.getSheetByName(CONFIG.SHEET_WALLET);
+      const rowIndex = Number(payload.rowIndex);
+      const walletName = payload.walletName || (payload.data && payload.data.name);
+
+      let deleted = false;
+      if (rowIndex && rowIndex >= 2 && rowIndex <= sheet.getLastRow()) {
+        if (walletName) {
+          const currentName = String(sheet.getRange(rowIndex, 1).getValue()).trim();
+          if (currentName.toLowerCase() === String(walletName).trim().toLowerCase()) {
+            sheet.deleteRow(rowIndex);
+            deleted = true;
+          }
+        } else {
+          sheet.deleteRow(rowIndex);
+          deleted = true;
+        }
+      }
+
+      if (!deleted && walletName) {
+        const lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          const names = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+          for (let i = 0; i < names.length; i++) {
+            if (String(names[i][0]).trim().toLowerCase() === String(walletName).trim().toLowerCase()) {
+              sheet.deleteRow(i + 2);
+              deleted = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!deleted) {
+        return createJsonResponse({ status: "error", message: "Dompet tidak ditemukan di Google Sheets" });
+      }
+      return createJsonResponse({ status: "success", message: "Dompet berhasil dihapus" });
+    }
+
     // 4. TAMBAH KATEGORI BARU
     if (action === "addCategory") {
       const sheet = ss.getSheetByName(CONFIG.SHEET_CATEGORY);

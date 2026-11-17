@@ -134,13 +134,14 @@
     inputWalletInitial: document.getElementById("input-wallet-initial"),
     btnSubmitWallet: document.getElementById("btn-submit-wallet"),
 
-    // Modal Edit Dompet (Atur Saldo Awal)
+    // Modal Edit Dompet (Atur Saldo Awal & Kelola)
     modalEditWallet: document.getElementById("modal-edit-wallet"),
     btnCloseEditWallet: document.getElementById("btn-close-edit-wallet"),
     formEditWallet: document.getElementById("form-edit-wallet"),
     editWalletName: document.getElementById("edit-wallet-name"),
     editWalletInitial: document.getElementById("edit-wallet-initial"),
     btnSubmitEditWallet: document.getElementById("btn-submit-edit-wallet"),
+    btnDeleteWallet: document.getElementById("btn-delete-wallet"),
 
     // Modal Tambah Kategori
     modalAddCategory: document.getElementById("modal-add-category"),
@@ -548,6 +549,46 @@
   }
 
   /**
+   * Hapus Dompet (Google Sheets & Local Storage)
+   */
+  async function handleDeleteWallet(wallet) {
+    if (!wallet) return;
+
+    if (state.wallets && state.wallets.length <= 1) {
+      showToast("Minimal harus tersisa 1 dompet aktif.", "error");
+      return;
+    }
+
+    const confirmMsg = `Apakah Anda yakin ingin menghapus dompet "${wallet.name}"?\nSaldo awal dan dompet ini akan dihapus dari daftar akun.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      showToast(`Menghapus dompet '${wallet.name}'...`, "info");
+      await API.deleteWallet({
+        rowIndex: wallet.rowIndex,
+        name: wallet.name
+      });
+
+      // Bersihkan dari susunan urutan kustom jika tersimpan
+      let currentOrder = APP_CONFIG.getWalletOrder();
+      if (Array.isArray(currentOrder)) {
+        currentOrder = currentOrder.filter((n) => n !== wallet.name);
+        APP_CONFIG.saveWalletOrder(currentOrder);
+        state.walletOrder = currentOrder;
+      }
+
+      if (DOM.modalEditWallet) closeModal(DOM.modalEditWallet);
+      showToast(`Dompet '${wallet.name}' berhasil dihapus!`, "success");
+      await loadData();
+      if (DOM.modalSortWallets && DOM.modalSortWallets.classList.contains("active")) {
+        renderWalletReorderList();
+      }
+    } catch (err) {
+      showToast(err.message || "Gagal menghapus dompet", "error");
+    }
+  }
+
+  /**
    * Render Carousel Dompet di Dashboard
    */
   function renderWalletsCarousel() {
@@ -655,14 +696,20 @@
           </div>
         </div>
         <div class="wallet-reorder-actions">
-          <button type="button" class="btn-reorder-arrow btn-move-up" data-index="${index}" ${index === 0 ? "disabled" : ""} aria-label="Geser ${w.name} ke atas">
+          <button type="button" class="btn-reorder-arrow btn-move-up" data-index="${index}" ${index === 0 ? "disabled" : ""} aria-label="Geser ${escapeHtml(w.name)} ke atas">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="m18 15-6-6-6 6"/>
             </svg>
           </button>
-          <button type="button" class="btn-reorder-arrow btn-move-down" data-index="${index}" ${index === sorted.length - 1 ? "disabled" : ""} aria-label="Geser ${w.name} ke bawah">
+          <button type="button" class="btn-reorder-arrow btn-move-down" data-index="${index}" ${index === sorted.length - 1 ? "disabled" : ""} aria-label="Geser ${escapeHtml(w.name)} ke bawah">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="m6 9 6 6 6-6"/>
+            </svg>
+          </button>
+          <button type="button" class="btn-reorder-arrow btn-del-wallet" data-index="${index}" aria-label="Hapus dompet ${escapeHtml(w.name)}" title="Hapus Dompet">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
           </button>
         </div>
@@ -682,6 +729,19 @@
         btnDown.addEventListener("click", (e) => {
           e.stopPropagation();
           moveWalletPosition(index, index + 1);
+        });
+      }
+
+      const btnDel = item.querySelector(".btn-del-wallet");
+      if (btnDel) {
+        btnDel.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          btnDel.disabled = true;
+          try {
+            await handleDeleteWallet(w);
+          } finally {
+            btnDel.disabled = false;
+          }
         });
       }
 
@@ -1899,6 +1959,19 @@
         DOM.btnSubmitEditWallet.querySelector("span").textContent = "Simpan Saldo";
       }
     });
+
+    // Tombol Hapus Dompet di Modal Edit
+    if (DOM.btnDeleteWallet) {
+      DOM.btnDeleteWallet.addEventListener("click", async () => {
+        if (!state.editingWallet) return;
+        DOM.btnDeleteWallet.disabled = true;
+        try {
+          await handleDeleteWallet(state.editingWallet);
+        } finally {
+          DOM.btnDeleteWallet.disabled = false;
+        }
+      });
+    }
 
     [
       DOM.modalTx,

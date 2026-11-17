@@ -185,6 +185,22 @@ const API = {
   },
 
   /**
+   * Hapus Dompet dari Google Sheets
+   */
+  async deleteWallet(walletData) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "deleteWallet",
+      rowIndex: walletData.rowIndex,
+      walletName: walletData.name,
+      data: {
+        name: walletData.name
+      }
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
    * Tambah Kategori Baru
    */
   async addCategory(categoryData) {
