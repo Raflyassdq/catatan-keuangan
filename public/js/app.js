@@ -40,6 +40,11 @@
     viewDashboard: document.getElementById("view-dashboard"),
     viewHistory: document.getElementById("view-history"),
 
+    // Pengubah Tema
+    themeTogglePill: document.getElementById("theme-toggle-pill"),
+    btnThemePink: document.getElementById("btn-theme-pink"),
+    btnThemeBlue: document.getElementById("btn-theme-blue"),
+
     // Status Koneksi
     btnRefreshData: document.getElementById("btn-refresh-data"),
     btnOpenSettings: document.getElementById("btn-open-settings"),
@@ -325,6 +330,26 @@
 
   function closeModal(modalEl) {
     modalEl.classList.remove("active");
+  }
+
+  /**
+   * Terapkan Tema Aplikasi (Pink / Biru)
+   */
+  function applyTheme(themeName) {
+    const theme = themeName === "blue" ? "blue" : "pink";
+    document.documentElement.setAttribute("data-theme", theme);
+
+    if (DOM.btnThemePink && DOM.btnThemeBlue) {
+      if (theme === "blue") {
+        DOM.btnThemeBlue.classList.add("active");
+        DOM.btnThemePink.classList.remove("active");
+      } else {
+        DOM.btnThemePink.classList.add("active");
+        DOM.btnThemeBlue.classList.remove("active");
+      }
+    }
+
+    APP_CONFIG.saveTheme(theme);
   }
 
   /**
@@ -2170,6 +2195,19 @@
       }
     });
 
+    // Pengubah Tema (Pink / Biru)
+    if (DOM.btnThemePink) {
+      DOM.btnThemePink.addEventListener("click", () => {
+        applyTheme("pink");
+      });
+    }
+
+    if (DOM.btnThemeBlue) {
+      DOM.btnThemeBlue.addEventListener("click", () => {
+        applyTheme("blue");
+      });
+    }
+
     // Refresh Manual Data
     if (DOM.btnRefreshData) {
       DOM.btnRefreshData.addEventListener("click", async () => {
@@ -2239,6 +2277,7 @@
   }
 
   function init() {
+    applyTheme(APP_CONFIG.getTheme());
     initEvents();
     registerServiceWorker();
     loadData();

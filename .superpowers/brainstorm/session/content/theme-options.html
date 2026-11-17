@@ -1,0 +1,113 @@
+<h2>Perbandingan Tampilan Tombol Pengubah Tema di Header</h2>
+<p class="subtitle">Silakan lihat visualisasi kedua opsi tombol di bawah ini dan klik opsi yang paling Anda sukai:</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)" style="cursor: pointer;">
+    <div class="letter">A</div>
+    <div class="content" style="width: 100%;">
+      <h3>Opsi A: Tombol Ikon Lingkaran (Single Tap Switcher) — Direkomendasikan</h3>
+      <p style="margin-bottom: 12px; color: var(--color-text-muted);">
+        Tombol bulat berukuran 34x34px serasi dengan tombol Refresh di sebelahnya. Satu ketukan langsung berganti tema dengan animasi rotasi palet warna yang halus.
+      </p>
+
+      <!-- Mockup Header Opsi A -->
+      <div style="background: #FAFAF7; border: 1px solid #EFECE6; border-radius: 16px; padding: 14px 16px; margin-top: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+        <div style="font-size: 0.72rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em;">Pratinjau Header Aplikasi (Opsi A)</div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #FFFFFF; padding: 10px 14px; border-radius: 12px; border: 1px solid #EFECE6;">
+          <!-- Brand -->
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 28px; height: 28px; border-radius: 8px; background: #FCEEF1; color: #E8829A; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem;">🌸</div>
+            <span style="font-weight: 800; font-size: 1.05rem; color: #1A1A2E; letter-spacing: -0.02em;">Keuangan</span>
+          </div>
+
+          <!-- Actions Wrapper -->
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <!-- Tombol Tema Opsi A (Palet Lingkaran) -->
+            <div style="width: 34px; height: 34px; border-radius: 50%; background: #FCEEF1; border: 1.5px solid #E8829A; display: flex; align-items: center; justify-content: center; position: relative; box-shadow: 0 1px 3px rgba(232,130,154,0.2);">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#E8829A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="13.5" cy="6.5" r=".5" fill="#E8829A"/>
+                <circle cx="17.5" cy="10.5" r=".5" fill="#5B9CE6"/>
+                <circle cx="8.5" cy="7.5" r=".5" fill="#E8829A"/>
+                <circle cx="6.5" cy="12.5" r=".5" fill="#5B9CE6"/>
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z"/>
+              </svg>
+              <!-- Dot status mode aktif -->
+              <span style="position: absolute; bottom: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: #E8829A; border: 1px solid #FFF;"></span>
+            </div>
+
+            <!-- Tombol Refresh -->
+            <div style="width: 34px; height: 34px; border-radius: 50%; background: #FFFFFF; border: 1px solid #EFECE6; display: flex; align-items: center; justify-content: center; color: #64748B;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            </div>
+
+            <!-- Status Terkoneksi -->
+            <div style="padding: 5px 10px; background: #FFFFFF; border: 1px solid #EFECE6; border-radius: 9999px; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 700; color: #64748B;">
+              <span style="width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></span>
+              <span>Terkoneksi</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 8px; font-size: 0.75rem; color: #10B981; font-weight: 600;">
+          ✔ Sangat hemat ruang (34px), judul & status koneksi tetap longgar di layar kecil.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)" style="cursor: pointer; margin-top: 18px;">
+    <div class="letter">B</div>
+    <div class="content" style="width: 100%;">
+      <h3>Opsi B: Tombol Kapsul Pilihan Ganda (Segmented Pill)</h3>
+      <p style="margin-bottom: 12px; color: var(--color-text-muted);">
+        Menampilkan dua bulatan warna berdampingan di dalam kapsul. Kedua warna (Pink dan Biru) langsung terlihat, tetapi memerlukan ruang lebih lebar.
+      </p>
+
+      <!-- Mockup Header Opsi B -->
+      <div style="background: #FAFAF7; border: 1px solid #EFECE6; border-radius: 16px; padding: 14px 16px; margin-top: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+        <div style="font-size: 0.72rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em;">Pratinjau Header Aplikasi (Opsi B)</div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #FFFFFF; padding: 10px 14px; border-radius: 12px; border: 1px solid #EFECE6;">
+          <!-- Brand -->
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 28px; height: 28px; border-radius: 8px; background: #FCEEF1; color: #E8829A; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem;">🌸</div>
+            <span style="font-weight: 800; font-size: 1.05rem; color: #1A1A2E; letter-spacing: -0.02em;">Keuangan</span>
+          </div>
+
+          <!-- Actions Wrapper -->
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <!-- Tombol Segmented Pill Opsi B -->
+            <div style="display: flex; align-items: center; background: #F1F5F9; padding: 3px; border-radius: 9999px; border: 1px solid #E2E8F0; gap: 3px;">
+              <!-- Pill Pink (Aktif) -->
+              <div style="display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.08); font-size: 0.7rem; font-weight: 700; color: #E8829A;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #E8829A;"></span>
+                <span>Pink</span>
+              </div>
+              <!-- Pill Biru -->
+              <div style="display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; color: #64748B;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #5B9CE6;"></span>
+                <span>Biru</span>
+              </div>
+            </div>
+
+            <!-- Tombol Refresh -->
+            <div style="width: 34px; height: 34px; border-radius: 50%; background: #FFFFFF; border: 1px solid #EFECE6; display: flex; align-items: center; justify-content: center; color: #64748B;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            </div>
+
+            <!-- Status Terkoneksi -->
+            <div style="padding: 5px 8px; background: #FFFFFF; border: 1px solid #EFECE6; border-radius: 9999px; display: flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #64748B;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: #10B981;"></span>
+              <span>Online</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 8px; font-size: 0.75rem; color: #F59E0B; font-weight: 600;">
+          ⚠️ Memakan lebar sekitar 80px di header, teks "Terkoneksi" mungkin harus dipersingkat menjadi "Online".
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
