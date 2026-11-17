@@ -68,5 +68,13 @@ const APP_CONFIG = {
 
   saveWalletOrder(orderArray) {
     localStorage.setItem("cfg_wallet_order", JSON.stringify(orderArray));
+  },
+
+  getTheme() {
+    return localStorage.getItem("cfg_theme") || "pink";
+  },
+
+  saveTheme(theme) {
+    localStorage.setItem("cfg_theme", theme === "blue" ? "blue" : "pink");
   }
 };
