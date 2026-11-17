@@ -15,6 +15,8 @@
     debts: [],
     debtFilter: "all",
     activePayingDebt: null,
+    walletSortMode: APP_CONFIG.getWalletSort(),
+    walletOrder: APP_CONFIG.getWalletOrder(),
     donutCategoryType: "Pengeluaran",
     selectedPeriod: "this-month",
     historyTypeFilter: "all",
@@ -49,9 +51,14 @@
     periodText: document.getElementById("summary-period-text"),
     periodButtons: document.querySelectorAll(".filter-pill[data-period]"),
 
-    // Wallets Carousel
+    // Wallets Carousel & Reordering
     walletsCarousel: document.getElementById("wallets-carousel"),
     btnTriggerAddWallet: document.getElementById("btn-trigger-add-wallet"),
+    btnTriggerSortWallet: document.getElementById("btn-trigger-sort-wallet"),
+    modalSortWallets: document.getElementById("modal-sort-wallets"),
+    btnCloseSortWallets: document.getElementById("btn-close-sort-wallets"),
+    walletReorderContainer: document.getElementById("wallet-reorder-container"),
+    walletSortPills: document.querySelectorAll(".wallet-sort-pill[data-wallet-sort]"),
 
     // Insights
     topExpense: document.getElementById("insight-top-expense"),
@@ -328,13 +335,53 @@
   }
 
   /**
-   * Mengambil daftar dompet aktif
+   * Mengambil daftar dompet terurut berdasarkan sortMode & urutan kustom
+   */
+  function getSortedWallets() {
+    let rawWallets = [];
+    if (state.wallets && state.wallets.length > 0) {
+      rawWallets = [...state.wallets];
+    } else {
+      rawWallets = [...APP_CONFIG.DEFAULT_WALLETS];
+    }
+
+    const sortMode = state.walletSortMode || "custom";
+
+    if (sortMode === "balance-desc") {
+      return rawWallets.sort((a, b) => (Number(b.currentBalance) || 0) - (Number(a.currentBalance) || 0));
+    }
+    if (sortMode === "balance-asc") {
+      return rawWallets.sort((a, b) => (Number(a.currentBalance) || 0) - (Number(b.currentBalance) || 0));
+    }
+    if (sortMode === "name-asc") {
+      return rawWallets.sort((a, b) => a.name.localeCompare(b.name, "id", { sensitivity: "base" }));
+    }
+    if (sortMode === "name-desc") {
+      return rawWallets.sort((a, b) => b.name.localeCompare(a.name, "id", { sensitivity: "base" }));
+    }
+
+    // Default / "custom": gunakan urutan state.walletOrder jika ada
+    if (Array.isArray(state.walletOrder) && state.walletOrder.length > 0) {
+      const orderMap = {};
+      state.walletOrder.forEach((name, idx) => {
+        orderMap[String(name).toLowerCase()] = idx;
+      });
+
+      return rawWallets.sort((a, b) => {
+        const idxA = orderMap[String(a.name).toLowerCase()] !== undefined ? orderMap[String(a.name).toLowerCase()] : 999;
+        const idxB = orderMap[String(b.name).toLowerCase()] !== undefined ? orderMap[String(b.name).toLowerCase()] : 999;
+        return idxA - idxB;
+      });
+    }
+
+    return rawWallets;
+  }
+
+  /**
+   * Mengambil daftar dompet aktif (sudah terurut)
    */
   function getActiveWallets() {
-    if (state.wallets && state.wallets.length > 0) {
-      return state.wallets;
-    }
-    return APP_CONFIG.DEFAULT_WALLETS;
+    return getSortedWallets();
   }
 
   /**
@@ -467,8 +514,8 @@
     const walletMap = {};
 
     // 1. Inisialisasi dari saldo awal
-    const wallets = getActiveWallets();
-    wallets.forEach((w) => {
+    const rawWallets = state.wallets && state.wallets.length > 0 ? state.wallets : APP_CONFIG.DEFAULT_WALLETS;
+    rawWallets.forEach((w) => {
       walletMap[w.name] = Number(w.initialBalance) || 0;
     });
 
@@ -491,7 +538,7 @@
     });
 
     // Pasang saldo terhitung ke state.wallets
-    state.wallets = wallets.map((w) => ({
+    state.wallets = rawWallets.map((w) => ({
       ...w,
       currentBalance: walletMap[w.name] || 0
     }));
@@ -504,8 +551,9 @@
    */
   function renderWalletsCarousel() {
     DOM.walletsCarousel.innerHTML = "";
+    const sorted = getSortedWallets();
 
-    state.wallets.forEach((w) => {
+    sorted.forEach((w) => {
       const card = document.createElement("div");
       card.className = "wallet-card";
       card.setAttribute("tabindex", "0");
@@ -515,18 +563,20 @@
       // Tentukan inisial ikon
       let iconText = "💰";
       const lower = w.name.toLowerCase();
-      if (lower.includes("bank") || lower.includes("bca") || lower.includes("mandiri") || lower.includes("bni")) {
+      if (lower.includes("bank") || lower.includes("bca") || lower.includes("mandiri") || lower.includes("bni") || lower.includes("bri") || lower.includes("bsi")) {
         iconText = "🏦";
-      } else if (lower.includes("gopay") || lower.includes("shopee") || lower.includes("dana") || lower.includes("ovo")) {
+      } else if (lower.includes("gopay") || lower.includes("shopee") || lower.includes("dana") || lower.includes("ovo") || lower.includes("jago")) {
         iconText = "📱";
       } else if (lower.includes("cash") || lower.includes("tunai")) {
         iconText = "💵";
+      } else if (lower.includes("rdn") || lower.includes("saham") || lower.includes("invest")) {
+        iconText = "📈";
       }
 
       card.innerHTML = `
         <div class="wallet-card-header">
           <div class="wallet-card-icon" aria-hidden="true">${iconText}</div>
-          <span class="wallet-card-name">${w.name}</span>
+          <span class="wallet-card-name">${escapeHtml(w.name)}</span>
         </div>
         <div class="wallet-card-balance" style="${w.currentBalance < 0 ? 'color: var(--color-expense);' : ''}">${formatRupiah(w.currentBalance)}</div>
       `;
@@ -543,6 +593,176 @@
 
       DOM.walletsCarousel.appendChild(card);
     });
+  }
+
+  /**
+   * Render Daftar Reorder Dompet di Modal Urutkan
+   */
+  function renderWalletReorderList() {
+    if (!DOM.walletReorderContainer) return;
+    DOM.walletReorderContainer.innerHTML = "";
+
+    const sorted = getSortedWallets();
+
+    // Update kelas active pada pill sort
+    if (DOM.walletSortPills) {
+      DOM.walletSortPills.forEach((pill) => {
+        if (pill.dataset.walletSort === state.walletSortMode) {
+          pill.classList.add("active");
+        } else {
+          pill.classList.remove("active");
+        }
+      });
+    }
+
+    sorted.forEach((w, index) => {
+      const item = document.createElement("div");
+      item.className = "wallet-reorder-item";
+      item.setAttribute("draggable", "true");
+      item.dataset.index = index;
+      item.dataset.walletName = w.name;
+
+      // Inisial ikon
+      let iconText = "💰";
+      const lower = w.name.toLowerCase();
+      if (lower.includes("bank") || lower.includes("bca") || lower.includes("mandiri") || lower.includes("bni") || lower.includes("bri") || lower.includes("bsi")) {
+        iconText = "🏦";
+      } else if (lower.includes("gopay") || lower.includes("shopee") || lower.includes("dana") || lower.includes("ovo") || lower.includes("jago")) {
+        iconText = "📱";
+      } else if (lower.includes("cash") || lower.includes("tunai")) {
+        iconText = "💵";
+      } else if (lower.includes("rdn") || lower.includes("saham") || lower.includes("invest")) {
+        iconText = "📈";
+      }
+
+      item.innerHTML = `
+        <div class="wallet-reorder-info">
+          <div class="wallet-reorder-handle" title="Tahan & geser untuk memindahkan">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="5" r="1"/>
+              <circle cx="9" cy="12" r="1"/>
+              <circle cx="9" cy="19" r="1"/>
+              <circle cx="15" cy="5" r="1"/>
+              <circle cx="15" cy="12" r="1"/>
+              <circle cx="15" cy="19" r="1"/>
+            </svg>
+          </div>
+          <div class="wallet-card-icon" style="width: 26px; height: 26px; font-size: 0.75rem;">${iconText}</div>
+          <div style="min-width: 0; flex: 1;">
+            <div class="wallet-reorder-name">${escapeHtml(w.name)}</div>
+            <div class="wallet-reorder-balance">${formatRupiah(w.currentBalance || 0)}</div>
+          </div>
+        </div>
+        <div class="wallet-reorder-actions">
+          <button type="button" class="btn-reorder-arrow btn-move-up" data-index="${index}" ${index === 0 ? "disabled" : ""} aria-label="Geser ${w.name} ke atas">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m18 15-6-6-6 6"/>
+            </svg>
+          </button>
+          <button type="button" class="btn-reorder-arrow btn-move-down" data-index="${index}" ${index === sorted.length - 1 ? "disabled" : ""} aria-label="Geser ${w.name} ke bawah">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
+          </button>
+        </div>
+      `;
+
+      // Event listener tombol panah ⬆️ dan ⬇️
+      const btnUp = item.querySelector(".btn-move-up");
+      if (btnUp) {
+        btnUp.addEventListener("click", (e) => {
+          e.stopPropagation();
+          moveWalletPosition(index, index - 1);
+        });
+      }
+
+      const btnDown = item.querySelector(".btn-move-down");
+      if (btnDown) {
+        btnDown.addEventListener("click", (e) => {
+          e.stopPropagation();
+          moveWalletPosition(index, index + 1);
+        });
+      }
+
+      // Drag and drop events
+      item.addEventListener("dragstart", (e) => {
+        item.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", index);
+      });
+
+      item.addEventListener("dragend", () => {
+        item.classList.remove("dragging");
+      });
+
+      item.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      });
+
+      item.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
+        const toIndex = index;
+        if (!isNaN(fromIndex) && fromIndex !== toIndex) {
+          moveWalletPosition(fromIndex, toIndex);
+        }
+      });
+
+      DOM.walletReorderContainer.appendChild(item);
+    });
+  }
+
+  /**
+   * Pindahkan posisi dompet dari fromIndex ke toIndex
+   */
+  function moveWalletPosition(fromIndex, toIndex) {
+    const list = getSortedWallets();
+    if (fromIndex < 0 || fromIndex >= list.length || toIndex < 0 || toIndex >= list.length) return;
+
+    // Pindahkan elemen
+    const [moved] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, moved);
+
+    // Otomatis beralih ke mode custom dan simpan daftar urutan
+    const newOrder = list.map((w) => w.name);
+    state.walletSortMode = "custom";
+    state.walletOrder = newOrder;
+
+    APP_CONFIG.saveWalletSort("custom");
+    APP_CONFIG.saveWalletOrder(newOrder);
+
+    renderWalletReorderList();
+    renderWalletsCarousel();
+    populateWalletDropdowns();
+  }
+
+  /**
+   * Terapkan Mode Urutan Cepat (Saldo Tertinggi, Terendah, A-Z, Z-A)
+   */
+  function applyWalletSortMode(sortMode) {
+    state.walletSortMode = sortMode;
+    APP_CONFIG.saveWalletSort(sortMode);
+
+    if (sortMode !== "custom") {
+      const sorted = getSortedWallets();
+      const newOrder = sorted.map((w) => w.name);
+      state.walletOrder = newOrder;
+      APP_CONFIG.saveWalletOrder(newOrder);
+    }
+
+    renderWalletReorderList();
+    renderWalletsCarousel();
+    populateWalletDropdowns();
+
+    const sortLabels = {
+      custom: "Urutan Kustom",
+      "balance-desc": "Saldo Tertinggi",
+      "balance-asc": "Saldo Terendah",
+      "name-asc": "Nama (A - Z)",
+      "name-desc": "Nama (Z - A)"
+    };
+    showToast(`Urutan dompet: ${sortLabels[sortMode] || sortMode}`, "success");
   }
 
   /**
@@ -1371,6 +1591,26 @@
       }
     });
 
+    // Atur & Urutkan Dompet Trigger & Events
+    if (DOM.btnTriggerSortWallet) {
+      DOM.btnTriggerSortWallet.addEventListener("click", () => {
+        renderWalletReorderList();
+        openModal(DOM.modalSortWallets);
+      });
+    }
+
+    if (DOM.btnCloseSortWallets) {
+      DOM.btnCloseSortWallets.addEventListener("click", () => closeModal(DOM.modalSortWallets));
+    }
+
+    if (DOM.walletSortPills) {
+      DOM.walletSortPills.forEach((pill) => {
+        pill.addEventListener("click", () => {
+          applyWalletSortMode(pill.dataset.walletSort);
+        });
+      });
+    }
+
     // Tambah Dompet Baru Trigger & Form
     DOM.btnTriggerAddWallet.addEventListener("click", () => {
       DOM.inputWalletName.value = "";
@@ -1664,7 +1904,8 @@
       DOM.modalSettings,
       DOM.modalDebtsList,
       DOM.modalAddDebt,
-      DOM.modalPayDebt
+      DOM.modalPayDebt,
+      DOM.modalSortWallets
     ].filter(Boolean).forEach((modal) => {
       modal.addEventListener("click", (e) => {
         if (e.target === modal) closeModal(modal);
@@ -1729,7 +1970,8 @@
           DOM.modalSettings,
           DOM.modalDebtsList,
           DOM.modalAddDebt,
-          DOM.modalPayDebt
+          DOM.modalPayDebt,
+          DOM.modalSortWallets
         ].filter(Boolean).forEach(closeModal);
       }
     });

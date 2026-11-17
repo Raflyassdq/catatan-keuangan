@@ -49,5 +49,26 @@ const APP_CONFIG = {
   saveCredentials(url, token) {
     if (url) localStorage.setItem("cfg_script_url", url.trim());
     if (token) localStorage.setItem("cfg_secret_token", token.trim());
+  },
+
+  getWalletSort() {
+    return localStorage.getItem("cfg_wallet_sort") || "custom";
+  },
+
+  saveWalletSort(sortMode) {
+    localStorage.setItem("cfg_wallet_sort", sortMode);
+  },
+
+  getWalletOrder() {
+    try {
+      const saved = localStorage.getItem("cfg_wallet_order");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveWalletOrder(orderArray) {
+    localStorage.setItem("cfg_wallet_order", JSON.stringify(orderArray));
   }
 };

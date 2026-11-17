@@ -26,7 +26,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body>
 
@@ -97,9 +97,20 @@
         <div class="wallets-section">
           <div class="wallets-section-header">
             <h2 class="wallets-section-title">Dompet & Sumber Uang</h2>
-            <button id="btn-trigger-add-wallet" class="btn-add-wallet-trigger" type="button" aria-label="Tambah Dompet Baru">
-              <span>+ Dompet</span>
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button id="btn-trigger-sort-wallet" class="btn-sort-wallet-trigger" type="button" aria-label="Atur Urutan Dompet">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m3 16 4 4 4-4"/>
+                  <path d="M7 20V4"/>
+                  <path d="m21 8-4-4-4 4"/>
+                  <path d="M17 4v16"/>
+                </svg>
+                <span>Urutkan</span>
+              </button>
+              <button id="btn-trigger-add-wallet" class="btn-add-wallet-trigger" type="button" aria-label="Tambah Dompet Baru">
+                <span>+ Dompet</span>
+              </button>
+            </div>
           </div>
           <div id="wallets-carousel" class="wallets-carousel" aria-label="Daftar Saldo Dompet">
             <!-- Di-render dinamis oleh app.js -->
@@ -467,6 +478,54 @@
     </div>
   </div>
 
+  <!-- ================= MODAL: ATUR & URUTKAN DOMPET ================= -->
+  <div id="modal-sort-wallets" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-sort-wallets-title">
+    <div class="modal-sheet" style="max-height: 88dvh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h2 id="modal-sort-wallets-title" class="modal-title">Urutkan Dompet</h2>
+        <button id="btn-close-sort-wallets" class="modal-close-btn" aria-label="Tutup Atur Urutan">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Format Cepat (Quick Sort Pills) -->
+      <div style="margin-bottom: 16px; flex-shrink: 0;">
+        <div style="font-size: 0.76rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em;">Pilihan Format Urutan</div>
+        <div class="wallet-sort-pills-grid">
+          <button type="button" class="wallet-sort-pill active" data-wallet-sort="custom">
+            <span>✨ Kustom (Bebas Geser)</span>
+          </button>
+          <button type="button" class="wallet-sort-pill" data-wallet-sort="balance-desc">
+            <span>💰 Saldo Tertinggi</span>
+          </button>
+          <button type="button" class="wallet-sort-pill" data-wallet-sort="balance-asc">
+            <span>📉 Saldo Terendah</span>
+          </button>
+          <button type="button" class="wallet-sort-pill" data-wallet-sort="name-asc">
+            <span>🔤 Nama (A - Z)</span>
+          </button>
+          <button type="button" class="wallet-sort-pill" data-wallet-sort="name-desc">
+            <span>🔤 Nama (Z - A)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Panduan Geser Manual -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-shrink: 0;">
+        <span style="font-size: 0.76rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em;">Pindah Urutan Manual</span>
+        <span style="font-size: 0.74rem; color: var(--color-text-muted);">Gunakan panah ⬆️⬇️</span>
+      </div>
+
+      <!-- Daftar Dompet untuk Reorder (Scrollable) -->
+      <div id="wallet-reorder-container" class="wallet-reorder-list" style="overflow-y: auto; flex: 1; padding-bottom: 24px;">
+        <!-- Di-render dinamis oleh app.js -->
+      </div>
+    </div>
+  </div>
+
   <!-- ================= MODAL: TAMBAH KATEGORI BARU ================= -->
   <div id="modal-add-category" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-add-cat-title">
     <div class="modal-sheet">
@@ -705,8 +764,8 @@
   </div>
 
   <!-- Core Scripts -->
-  <script src="js/config.js?v=10"></script>
-  <script src="js/api.js?v=10"></script>
-  <script src="js/app.js?v=10"></script>
+  <script src="js/config.js?v=11"></script>
+  <script src="js/api.js?v=11"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>
