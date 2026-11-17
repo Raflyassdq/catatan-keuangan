@@ -1,4 +1,4 @@
-const CACHE_NAME = "catatan-keuangan-v8";
+const CACHE_NAME = "catatan-keuangan-v9";
 const STATIC_ASSETS = [
   "./",
   "./index.html",

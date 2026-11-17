@@ -200,7 +200,7 @@ const API = {
   },
 
   /**
-   * Tambah Hutang / Piutang Baru
+   * Tambah Utang / Piutang Baru
    */
   async addDebt(debtData) {
     const payload = {
@@ -208,7 +208,7 @@ const API = {
       action: "addDebt",
       data: {
         date: debtData.date,
-        type: debtData.type, // "Hutang" atau "Piutang"
+        type: debtData.type, // "Utang" atau "Piutang"
         person: debtData.person.trim(),
         amount: Number(debtData.amount),
         dueDate: debtData.dueDate || "",
@@ -219,7 +219,7 @@ const API = {
   },
 
   /**
-   * Pelunasan / Cicil Hutang & Piutang (Update hutang + Catat kas di dompet)
+   * Pelunasan / Cicil Utang & Piutang (Update utang + Catat kas di dompet)
    */
   async payDebt(payData) {
     const payload = {
@@ -237,7 +237,7 @@ const API = {
   },
 
   /**
-   * Hapus Data Hutang / Piutang
+   * Hapus Data Utang / Piutang
    */
   async deleteDebt(rowIndex) {
     const payload = {

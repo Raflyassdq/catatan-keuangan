@@ -84,15 +84,15 @@ function setupSheets() {
       ["Pengeluaran", "Pendidikan"],
       ["Pengeluaran", "Tabungan / Investasi"],
       ["Pengeluaran", "Skincare & Kosmetik"],
-      ["Pengeluaran", "Bayar Hutang"],
+      ["Pengeluaran", "Bayar Utang"],
       ["Pengeluaran", "Lain-lain"]
     ];
     defaultCategories.forEach(c => categorySheet.appendRow(c));
   }
 
-  // 6. Sheet Hutang & Piutang
-  let debtSheet = ss.getSheetByName(CONFIG.SHEET_DEBT);
-  if (!debtSheet) debtSheet = ss.insertSheet(CONFIG.SHEET_DEBT);
+  // 6. Sheet Utang & Piutang
+  let debtSheet = getDebtSheet(ss);
+  if (!debtSheet) debtSheet = ss.insertSheet("UtangPiutang");
   if (debtSheet.getLastRow() === 0) {
     debtSheet.appendRow([
       "ID", "Tanggal", "Jenis", "Nama Pihak", "Nominal Total", "Terbayar", "Sisa", "Status", "Jatuh Tempo", "Catatan"
@@ -128,7 +128,7 @@ function doGet(e) {
     const transferData = readTransferRows(ss.getSheetByName(CONFIG.SHEET_TRANSFER));
     const walletData = readWalletRows(ss.getSheetByName(CONFIG.SHEET_WALLET));
     const categoryData = readCategoryRows(ss.getSheetByName(CONFIG.SHEET_CATEGORY));
-    const debtData = readDebtRows(ss.getSheetByName(CONFIG.SHEET_DEBT));
+    const debtData = readDebtRows(getDebtSheet(ss));
 
     // Gabungkan transaksi untuk riwayat
     const allTransactions = incomeData.concat(expenseData).concat(transferData);
@@ -250,17 +250,21 @@ function doPost(e) {
       return createJsonResponse({ status: "success", message: "Kategori berhasil ditambahkan" });
     }
 
-    // 5. TAMBAH HUTANG / PIUTANG BARU
+    // 5. TAMBAH UTANG / PIUTANG BARU
     if (action === "addDebt") {
-      const sheet = ss.getSheetByName(CONFIG.SHEET_DEBT);
+      let sheet = getDebtSheet(ss);
+      if (!sheet) sheet = ss.insertSheet("UtangPiutang");
+
       const data = payload.data;
       const totalAmount = Number(data.amount) || 0;
       const id = "debt-" + Date.now();
+      const rawType = data.type;
+      const cleanType = (rawType === "Hutang" || rawType === "Utang") ? "Utang" : "Piutang";
 
       const rowData = [
         id,
         data.date,
-        data.type, // "Hutang" atau "Piutang"
+        cleanType, // "Utang" atau "Piutang"
         data.person,
         totalAmount,
         0, // Terbayar awal
@@ -273,24 +277,26 @@ function doPost(e) {
 
       return createJsonResponse({
         status: "success",
-        message: "Data " + data.type + " berhasil dicatat",
+        message: "Data " + cleanType + " berhasil dicatat",
         data: { rowIndex: sheet.getLastRow() }
       });
     }
 
-    // 6. PELUNASAN / CICIL HUTANG & PIUTANG
+    // 6. PELUNASAN / CICIL UTANG & PIUTANG
     if (action === "payDebt") {
-      const debtSheet = ss.getSheetByName(CONFIG.SHEET_DEBT);
+      const debtSheet = getDebtSheet(ss);
       const data = payload.data;
       const rowIndex = Number(payload.rowIndex);
       const payAmount = Number(data.payAmount) || 0;
 
-      if (!rowIndex || rowIndex < 2 || payAmount <= 0) {
+      if (!debtSheet || !rowIndex || rowIndex < 2 || payAmount <= 0) {
         return createJsonResponse({ status: "error", message: "Data pelunasan tidak valid" });
       }
 
       const rowValues = debtSheet.getRange(rowIndex, 1, 1, 10).getValues()[0];
-      const debtType = String(rowValues[2]);
+      const rawType = String(rowValues[2]);
+      const isPayable = rawType === "Hutang" || rawType === "Utang";
+      const debtType = isPayable ? "Utang" : "Piutang";
       const person = String(rowValues[3]);
       const totalAmount = Number(rowValues[4]) || 0;
       const currentPaid = Number(rowValues[5]) || 0;
@@ -299,21 +305,21 @@ function doPost(e) {
       const newRemaining = Math.max(0, totalAmount - newPaid);
       const newStatus = newRemaining <= 0 ? "Lunas" : "Belum Lunas";
 
-      // Update baris HutangPiutang
+      // Update baris UtangPiutang / HutangPiutang
       debtSheet.getRange(rowIndex, 6, 1, 3).setValues([[newPaid, newRemaining, newStatus]]);
 
       // Otomatis catat transaksi kas riil di sheet yang sesuai
       const walletName = data.wallet || "CASH";
       const payDate = data.date || normalizeDate(new Date());
 
-      if (debtType === "Hutang") {
-        // Bayar Hutang = Pengeluaran kas
+      if (isPayable) {
+        // Bayar Utang = Pengeluaran kas
         const expenseSheet = ss.getSheetByName(CONFIG.SHEET_EXPENSE);
         expenseSheet.appendRow([
           payDate,
           payAmount,
-          "Bayar Hutang",
-          `Pelunasan hutang ke ${person}${data.note ? " - " + data.note : ""}`,
+          "Bayar Utang",
+          `Pelunasan utang ke ${person}${data.note ? " - " + data.note : ""}`,
           walletName
         ]);
       } else {
@@ -334,12 +340,14 @@ function doPost(e) {
       });
     }
 
-    // 7. HAPUS HUTANG / PIUTANG
+    // 7. HAPUS UTANG / PIUTANG
     if (action === "deleteDebt") {
       const rowIndex = Number(payload.rowIndex);
-      const sheet = ss.getSheetByName(CONFIG.SHEET_DEBT);
-      sheet.deleteRow(rowIndex);
-      return createJsonResponse({ status: "success", message: "Data hutang/piutang berhasil dihapus" });
+      const sheet = getDebtSheet(ss);
+      if (sheet) {
+        sheet.deleteRow(rowIndex);
+      }
+      return createJsonResponse({ status: "success", message: "Data utang/piutang berhasil dihapus" });
     }
 
     // 8. UPDATE TRANSAKSI
@@ -519,11 +527,14 @@ function readDebtRows(sheet) {
     if (!totalAmount && totalAmount !== 0) continue;
 
     const rowNumber = i + 2;
+    const rawType = String(row[2] || "Piutang");
+    const cleanType = (rawType === "Hutang" || rawType === "Utang") ? "Utang" : "Piutang";
+
     results.push({
       id: String(row[0] || `debt-${rowNumber}`),
       rowIndex: rowNumber,
       date: normalizeDate(row[1]),
-      type: String(row[2] || "Piutang"),
+      type: cleanType,
       person: String(row[3] || ""),
       amount: totalAmount,
       paid: Number(row[5]) || 0,
@@ -537,9 +548,13 @@ function readDebtRows(sheet) {
   return results;
 }
 
+function getDebtSheet(ss) {
+  return ss.getSheetByName("UtangPiutang") || ss.getSheetByName("HutangPiutang");
+}
+
 function ensureSheetsExist() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss.getSheetByName(CONFIG.SHEET_WALLET) || !ss.getSheetByName(CONFIG.SHEET_DEBT)) {
+  if (!ss.getSheetByName(CONFIG.SHEET_WALLET) || !getDebtSheet(ss)) {
     setupSheets();
   }
 }

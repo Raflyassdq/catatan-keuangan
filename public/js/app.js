@@ -546,7 +546,7 @@
   }
 
   /**
-   * Render Ringkasan Hutang & Piutang di Dashboard
+   * Render Ringkasan Utang & Piutang di Dashboard
    */
   function renderDebtsSummary() {
     if (!DOM.summaryTotalReceivables || !DOM.summaryTotalPayables) return;
@@ -560,7 +560,7 @@
       if (!isPaid) {
         if (debt.type === "Piutang") {
           totalReceivables += remaining;
-        } else if (debt.type === "Hutang") {
+        } else if (debt.type === "Hutang" || debt.type === "Utang") {
           totalPayables += remaining;
         }
       }
@@ -571,7 +571,7 @@
   }
 
   /**
-   * Render Daftar Hutang & Piutang dalam Modal
+   * Render Daftar Utang & Piutang dalam Modal
    */
   function renderDebtsList() {
     if (!DOM.debtsItemsContainer) return;
@@ -584,7 +584,7 @@
       if (filter === "unpaid") return !isPaid;
       if (filter === "paid") return isPaid;
       if (filter === "receivable") return item.type === "Piutang";
-      if (filter === "payable") return item.type === "Hutang";
+      if (filter === "payable") return item.type === "Utang" || item.type === "Hutang";
       return true; // all
     });
 
@@ -593,7 +593,7 @@
         <div style="text-align: center; padding: 36px 16px; color: var(--color-text-muted);">
           <div style="font-size: 2.2rem; margin-bottom: 8px;">📑</div>
           <div style="font-weight: 700; font-size: 0.95rem; color: var(--color-text-main);">Tidak ada data</div>
-          <div style="font-size: 0.82rem; margin-top: 4px;">Tidak ada hutang atau piutang pada kategori ini.</div>
+          <div style="font-size: 0.82rem; margin-top: 4px;">Tidak ada utang atau piutang pada kategori ini.</div>
         </div>
       `;
       return;
@@ -602,6 +602,7 @@
     let html = "";
     filtered.forEach((debt) => {
       const isReceivable = debt.type === "Piutang";
+      const displayType = isReceivable ? "Piutang" : "Utang";
       const totalAmount = Number(debt.amount) || 0;
       const paidAmount = Number(debt.paid) || 0;
       const remainingAmount = Number(debt.remaining) || 0;
@@ -613,7 +614,7 @@
           <div class="debt-card-header">
             <div class="debt-person-name">${escapeHtml(debt.person)}</div>
             <div class="debt-badges">
-              <span class="badge-tag ${isReceivable ? 'receivable' : 'payable'}">${escapeHtml(debt.type)}</span>
+              <span class="badge-tag ${isReceivable ? 'receivable' : 'payable'}">${escapeHtml(displayType)}</span>
               <span class="badge-tag ${isPaid ? 'paid' : 'unpaid'}">${isPaid ? 'Lunas' : 'Belum Lunas'}</span>
             </div>
           </div>
@@ -650,7 +651,7 @@
                 ✓ Selesai Lunas
               </div>
             `}
-            <button type="button" class="btn-delete-debt btn-trigger-del-debt" data-row-index="${debt.rowIndex}" data-person="${escapeHtml(debt.person)}" aria-label="Hapus Hutang / Piutang">
+            <button type="button" class="btn-delete-debt btn-trigger-del-debt" data-row-index="${debt.rowIndex}" data-person="${escapeHtml(debt.person)}" aria-label="Hapus Utang / Piutang">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 6h18"/>
                 <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
@@ -676,11 +677,11 @@
       btn.addEventListener("click", async () => {
         const rowIndex = Number(btn.dataset.rowIndex);
         const person = btn.dataset.person || "pihak ini";
-        if (confirm(`Apakah Anda yakin ingin menghapus catatan hutang/piutang untuk ${person}?`)) {
+        if (confirm(`Apakah Anda yakin ingin menghapus catatan utang/piutang untuk ${person}?`)) {
           btn.disabled = true;
           try {
             await API.deleteDebt(rowIndex);
-            showToast("Catatan hutang/piutang berhasil dihapus!", "success");
+            showToast("Catatan utang/piutang berhasil dihapus!", "success");
             await loadData();
             renderDebtsList();
           } catch (err) {
@@ -713,9 +714,12 @@
     if (!debt) return;
 
     state.activePayingDebt = debt;
+    const isReceivable = debt.type === "Piutang";
+    const displayType = isReceivable ? "Piutang" : "Utang";
+
     DOM.inputPayDebtRowIndex.value = debt.rowIndex;
     DOM.inputPayDebtType.value = debt.type;
-    DOM.payDebtPersonLabel.textContent = `${debt.type}: ${debt.person}`;
+    DOM.payDebtPersonLabel.textContent = `${displayType}: ${debt.person}`;
     DOM.payDebtRemainingLabel.textContent = formatRupiah(debt.remaining);
 
     // Default pelunasan penuh sisa
@@ -1589,7 +1593,9 @@
             note: note
           });
 
-          showToast(`Pelunasan ${debtType} berhasil dicatat ke dompet ${wallet}!`, "success");
+          const isReceivable = debtType === "Piutang";
+          const displayType = isReceivable ? "Piutang" : "Utang";
+          showToast(`Pelunasan ${displayType} berhasil dicatat ke dompet ${wallet}!`, "success");
           closeModal(DOM.modalPayDebt);
           await loadData();
           renderDebtsList();
