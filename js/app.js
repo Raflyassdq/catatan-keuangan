@@ -40,6 +40,7 @@
     viewHistory: document.getElementById("view-history"),
 
     // Status Koneksi
+    btnRefreshData: document.getElementById("btn-refresh-data"),
     btnOpenSettings: document.getElementById("btn-open-settings"),
     syncIndicator: document.getElementById("sync-indicator"),
     syncText: document.getElementById("sync-text"),
@@ -1405,7 +1406,7 @@
       DOM.btnRetryFetch.style.display = "inline-block";
       DOM.btnRetryFetch.textContent = "Buka Pengaturan";
       DOM.btnRetryFetch.onclick = () => openModal(DOM.modalSettings);
-      return;
+      return false;
     }
 
     DOM.syncIndicator.className = "sync-dot syncing";
@@ -1421,6 +1422,10 @@
       updateConnectionBadge();
       renderDashboard();
       renderHistoryList();
+      if (DOM.modalDebtsList && DOM.modalDebtsList.classList.contains("active")) {
+        renderDebtsList();
+      }
+      return true;
     } catch (error) {
       DOM.syncIndicator.className = "sync-dot offline";
       DOM.syncText.textContent = "Gagal";
@@ -1432,6 +1437,7 @@
       DOM.btnRetryFetch.style.display = "inline-block";
       DOM.btnRetryFetch.textContent = "Coba Lagi";
       DOM.btnRetryFetch.onclick = loadData;
+      return false;
     }
   }
 
@@ -1939,6 +1945,26 @@
         DOM.btnConfirmDelete.textContent = "Ya, Hapus";
       }
     });
+
+    // Refresh Manual Data
+    if (DOM.btnRefreshData) {
+      DOM.btnRefreshData.addEventListener("click", async () => {
+        if (DOM.btnRefreshData.classList.contains("spinning")) return;
+        DOM.btnRefreshData.classList.add("spinning");
+        DOM.btnRefreshData.disabled = true;
+        try {
+          const success = await loadData();
+          if (success) {
+            showToast("Data berhasil diperbarui!", "success");
+          }
+        } catch (err) {
+          showToast("Gagal memperbarui data: " + (err.message || err), "error");
+        } finally {
+          DOM.btnRefreshData.classList.remove("spinning");
+          DOM.btnRefreshData.disabled = false;
+        }
+      });
+    }
 
     // Pengaturan
     DOM.btnOpenSettings.addEventListener("click", () => {
