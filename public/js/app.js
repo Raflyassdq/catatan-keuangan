@@ -910,15 +910,15 @@
     DOM.chartCategoryCanvas.style.display = "block";
     DOM.chartDonutEmpty.style.display = "none";
 
-    // Palet warna pengeluaran (Dusty Rose dkk) vs pemasukan (Emerald & Sage Green)
+    // Palet warna pengeluaran (Dusty Rose dkk) vs pemasukan (Soft Blue & Sky tones)
     const expensePalette = [
       "#E8829A", "#F2B5C5", "#E5A99B", "#F6D2C9",
       "#C5A3B8", "#A3C4BC", "#BFD8D2", "#DFCCF1"
     ];
 
     const incomePalette = [
-      "#16A34A", "#10B981", "#34D399", "#2DD4BF",
-      "#059669", "#6EE7B7", "#0D9488", "#14B8A6"
+      "#5B9CE6", "#7AAEEA", "#6BA5EC", "#91C0F4",
+      "#A8CDF6", "#5C8BDE", "#7A9FE6", "#B8D7FA"
     ];
 
     const palette = type === "Pemasukan" ? incomePalette : expensePalette;
@@ -980,7 +980,7 @@
         labels: ["Pemasukan", "Pengeluaran"],
         datasets: [{
           data: [income, expense],
-          backgroundColor: ["#16A34A", "#E8829A"],
+          backgroundColor: ["#5B9CE6", "#E8829A"],
           borderRadius: 8,
           maxBarThickness: 48
         }]

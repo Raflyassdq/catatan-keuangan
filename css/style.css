@@ -15,8 +15,8 @@
   --color-primary-light: #FCEEF1;
   --color-primary-rgb: 232, 130, 154;
 
-  --color-income: #16A34A;
-  --color-income-light: #EBFBF3;
+  --color-income: #5B9CE6;
+  --color-income-light: #EEF4FD;
   --color-expense: #E8829A;
   --color-expense-light: #FCEEF1;
 
@@ -146,7 +146,7 @@ button {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--color-income);
+  background-color: #22C55E;
 }
 
 .sync-dot.syncing {
@@ -1069,13 +1069,13 @@ button {
 
 .type-toggle-btn.active.transfer {
   background-color: var(--color-surface);
-  color: #2563EB;
+  color: #6366F1;
   box-shadow: var(--shadow-sm);
 }
 
 .transaction-type-badge.transfer {
-  background-color: #EFF6FF;
-  color: #2563EB;
+  background-color: #EEF2FF;
+  color: #6366F1;
 }
 
 .label-with-action {
