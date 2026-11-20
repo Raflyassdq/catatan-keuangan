@@ -947,6 +947,12 @@ button {
   margin-top: 14px;
 }
 
+@media (min-width: 560px) {
+  .insights-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 .insight-item {
   display: flex;
   align-items: flex-start;
@@ -967,6 +973,11 @@ button {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.insight-icon.income {
+  background-color: var(--color-income-light);
+  color: var(--color-income);
 }
 
 .insight-body {

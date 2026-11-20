@@ -68,6 +68,7 @@
     walletSortPills: document.querySelectorAll(".wallet-sort-pill[data-wallet-sort]"),
 
     // Insights
+    topIncome: document.getElementById("insight-top-income"),
     topExpense: document.getElementById("insight-top-expense"),
     dailyAverage: document.getElementById("insight-daily-average"),
 
@@ -1241,6 +1242,15 @@
     DOM.periodText.textContent = `Periode: ${periodLabels[state.selectedPeriod] || "Bulan Ini"}`;
 
     // Insights
+    const sortedIncome = Object.entries(categoryIncomeTotals).sort((a, b) => b[1] - a[1]);
+    if (DOM.topIncome) {
+      if (sortedIncome.length > 0) {
+        DOM.topIncome.textContent = `${sortedIncome[0][0]} (${formatRupiah(sortedIncome[0][1])})`;
+      } else {
+        DOM.topIncome.textContent = "Belum ada pemasukan";
+      }
+    }
+
     const sortedCategories = Object.entries(categoryExpenseTotals).sort((a, b) => b[1] - a[1]);
     if (sortedCategories.length > 0) {
       DOM.topExpense.textContent = `${sortedCategories[0][0]} (${formatRupiah(sortedCategories[0][1])})`;
