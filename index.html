@@ -270,6 +270,16 @@
           <input type="search" id="input-search" class="search-input" placeholder="Cari catatan, dompet, kategori..." aria-label="Cari transaksi">
         </div>
 
+        <!-- Filter Periode Riwayat -->
+        <div id="history-period-bar" class="filter-bar" role="tablist" aria-label="Filter periode riwayat" style="margin-bottom: 8px;">
+          <button type="button" class="filter-pill active" data-period="this-month" role="tab" aria-selected="true">Bulan Ini</button>
+          <button type="button" class="filter-pill" data-period="this-week" role="tab" aria-selected="false">Minggu Ini</button>
+          <button type="button" class="filter-pill" data-period="today" role="tab" aria-selected="false">Hari Ini</button>
+          <button type="button" class="filter-pill" data-period="all" role="tab" aria-selected="false">Semua</button>
+          <button type="button" id="btn-filter-history-custom-month" class="filter-pill" data-period="custom-month" role="tab" aria-selected="false">📅 Pilih Bulan</button>
+        </div>
+
+        <!-- Filter Jenis Transaksi -->
         <div class="filter-bar" role="tablist" aria-label="Filter jenis transaksi">
           <button class="filter-pill active" data-history-type="all" role="tab">Semua</button>
           <button class="filter-pill" data-history-type="Pengeluaran" role="tab">Pengeluaran</button>
@@ -861,6 +871,11 @@
         </button>
       </div>
 
+      <!-- Status Rentang Terpilih -->
+      <div id="picker-range-status" class="range-status-badge">
+        <span>Ketuk bulan awal & bulan akhir</span>
+      </div>
+
       <!-- Grid 12 Bulan -->
       <div class="month-picker-grid">
         <button type="button" class="month-picker-btn" data-month="0">Jan</button>
@@ -879,6 +894,9 @@
 
       <!-- Quick Action / Shortcut -->
       <div class="month-picker-actions">
+        <button type="button" id="btn-apply-month-range" class="btn-apply-range">
+          <span>Terapkan Rentang</span>
+        </button>
         <button type="button" id="btn-picker-current-month" class="btn-picker-current">
           <span>Bulan Sekarang</span>
         </button>

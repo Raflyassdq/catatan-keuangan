@@ -1766,13 +1766,85 @@ button {
   font-weight: 700;
 }
 
+/* Range Highlight Styles */
+.range-status-badge {
+  background-color: var(--color-primary-light);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.25);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 14px;
+}
+
+.month-picker-btn.range-start {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #FFFFFF;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.3);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.month-picker-btn.range-end {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #FFFFFF;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.3);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.month-picker-btn.range-start.range-end {
+  border-radius: var(--radius-md);
+}
+
+.month-picker-btn.range-between {
+  background-color: var(--color-primary-light);
+  border-color: rgba(var(--color-primary-rgb), 0.2);
+  color: var(--color-primary);
+  font-weight: 700;
+  border-radius: 0;
+}
+
 .month-picker-actions {
   display: flex;
-  justify-content: stretch;
+  gap: 10px;
+}
+
+.btn-apply-range {
+  flex: 1.2;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  background-color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.25);
+}
+
+.btn-apply-range:hover {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+.btn-apply-range:active {
+  transform: scale(0.97);
 }
 
 .btn-picker-current {
-  width: 100%;
+  flex: 0.9;
   min-height: 42px;
   display: flex;
   align-items: center;
