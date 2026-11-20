@@ -112,6 +112,12 @@
     modalTxTitle: document.getElementById("modal-tx-title"),
     btnCloseTxModal: document.getElementById("btn-close-tx-modal"),
     formTx: document.getElementById("form-transaction"),
+    btnScanReceipt: document.getElementById("btn-scan-receipt"),
+    inputReceiptFile: document.getElementById("input-receipt-file"),
+    scanReceiptStatus: document.getElementById("scan-receipt-status"),
+    scanStatusTitle: document.getElementById("scan-status-title"),
+    scanStatusMode: document.getElementById("scan-status-mode"),
+    btnCancelScan: document.getElementById("btn-cancel-scan"),
     toggleTypeExpense: document.getElementById("toggle-type-expense"),
     toggleTypeIncome: document.getElementById("toggle-type-income"),
     toggleTypeTransfer: document.getElementById("toggle-type-transfer"),
@@ -189,6 +195,7 @@
     formSettings: document.getElementById("form-settings"),
     settingsScriptUrl: document.getElementById("settings-script-url"),
     settingsSecretToken: document.getElementById("settings-secret-token"),
+    settingsGeminiKey: document.getElementById("settings-gemini-key"),
     btnSettingsManageCategories: document.getElementById("btn-settings-manage-categories"),
 
     // Debts Summary Card & Dashboard Triggers
@@ -342,6 +349,397 @@
       toast.style.transition = "all 0.25s ease";
       setTimeout(() => toast.remove(), 250);
     }, 3200);
+  }
+
+  // ==========================================
+  // FITUR PEMINDAI STRUK / NOTA (HYBRID OCR)
+  // ==========================================
+  let activeScanCancelled = false;
+  let tesseractLoadingPromise = null;
+
+  function cancelReceiptScan() {
+    activeScanCancelled = true;
+    if (DOM.scanReceiptStatus) DOM.scanReceiptStatus.style.display = "none";
+    if (DOM.btnScanReceipt && !state.isEditing) DOM.btnScanReceipt.style.display = "flex";
+    if (DOM.inputReceiptFile) DOM.inputReceiptFile.value = "";
+    showToast("Pemindaian struk dibatalkan", "info");
+  }
+
+  function compressReceiptImage(file, maxDimension = 1200, quality = 0.75) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Gagal membaca berkas gambar"));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Gagal memuat elemen gambar"));
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function extractReceiptDataFromText(rawText) {
+    if (!rawText || typeof rawText !== "string") {
+      return { amount: 0, date: "", merchant: "", category: "", note: "" };
+    }
+
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let merchant = "";
+    let date = "";
+    let amount = 0;
+    let category = "";
+    let note = "";
+
+    // 1. Ekstrak Merchant (ambil baris 1-3 yang bukan angka/tanggal saja)
+    for (let i = 0; i < Math.min(lines.length, 4); i++) {
+      const line = lines[i];
+      if (line.length > 2 && !/^\d+$/.test(line) && !/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(line)) {
+        merchant = line.replace(/[*=_\-~]+/g, "").trim().substring(0, 40);
+        break;
+      }
+    }
+
+    // 2. Ekstrak Tanggal (DD/MM/YYYY atau DD-MM-YYYY atau YYYY-MM-DD)
+    const dateRegex = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b|\b(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\b/;
+    const dateMatch = rawText.match(dateRegex);
+    if (dateMatch) {
+      if (dateMatch[1] && dateMatch[2] && dateMatch[3]) {
+        let day = dateMatch[1].padStart(2, "0");
+        let month = dateMatch[2].padStart(2, "0");
+        let year = dateMatch[3];
+        if (year.length === 2) year = "20" + year;
+        if (Number(month) <= 12 && Number(day) <= 31) {
+          date = `${year}-${month}-${day}`;
+        }
+      } else if (dateMatch[4] && dateMatch[5] && dateMatch[6]) {
+        let year = dateMatch[4];
+        let month = dateMatch[5].padStart(2, "0");
+        let day = dateMatch[6].padStart(2, "0");
+        if (Number(month) <= 12 && Number(day) <= 31) {
+          date = `${year}-${month}-${day}`;
+        }
+      }
+    }
+
+    // 3. Ekstrak Grand Total / Total Bayar
+    function parseAmountNumber(numStr) {
+      if (!numStr) return 0;
+      let clean = numStr.trim().replace(/^rp\.?\s*/i, "").replace(/^idr\s*/i, "").trim();
+      if (clean.includes(".") && clean.includes(",")) {
+        clean = clean.replace(/\./g, "").replace(",", ".");
+        return Math.round(parseFloat(clean)) || 0;
+      }
+      if (clean.includes(",") && clean.indexOf(",") < clean.lastIndexOf(".")) {
+        clean = clean.replace(/,/g, "");
+        return Math.round(parseFloat(clean)) || 0;
+      }
+      if (/^\d{1,3}(\.\d{3})+$/.test(clean)) {
+        clean = clean.replace(/\./g, "");
+        return parseInt(clean, 10) || 0;
+      }
+      clean = clean.replace(/[^0-9]/g, "");
+      return parseInt(clean, 10) || 0;
+    }
+
+    const priorityPatterns = [
+      /(?:grand\s*total|total\s*bayar|total\s*akhir|tagihan)\s*[:=]?\s*(?:rp\.?|idr)?\s*([0-9.,]+)/i,
+      /(?:^|\n)\s*total\s*[:=]?\s*(?:rp\.?|idr)?\s*([0-9.,]+)/i,
+      /(?:jumlah\s*bayar|jumlah)\s*[:=]?\s*(?:rp\.?|idr)?\s*([0-9.,]+)/i,
+      /(?:tunai|cash|debit|qris|gopay|ovo|shopeepay)\s*[:=]?\s*(?:rp\.?|idr)?\s*([0-9.,]+)/i,
+      /(?:subtotal|sub\s*total)\s*[:=]?\s*(?:rp\.?|idr)?\s*([0-9.,]+)/i
+    ];
+
+    for (const pattern of priorityPatterns) {
+      const match = rawText.match(pattern);
+      if (match && match[1]) {
+        const parsed = parseAmountNumber(match[1]);
+        if (parsed > 0) {
+          amount = parsed;
+          break;
+        }
+      }
+    }
+
+    if (!amount && lines.length > 3) {
+      let maxCandidate = 0;
+      for (let i = 3; i < lines.length; i++) {
+        const line = lines[i];
+        const matches = line.match(/(?:rp\.?|idr)?\s*([0-9.,]+)/gi);
+        if (matches) {
+          matches.forEach(m => {
+            const val = parseAmountNumber(m);
+            if (val >= 1000 && val < 100000000 && val > maxCandidate) {
+              maxCandidate = val;
+            }
+          });
+        }
+      }
+      if (maxCandidate > 0) amount = maxCandidate;
+    }
+
+    // 4. Deteksi Kategori Pengeluaran
+    const upperText = rawText.toUpperCase();
+    if (/MAKAN|RESTO|CAFE|KOPI|WARUNG|KFC|MCD|BURGER|PIZZA|BAKSO|MIE|SATE|AYAM|NASI|BEVERAGE|FOOD/.test(upperText)) {
+      category = "Makan & Minum";
+    } else if (/SPBU|PERTAMINA|SHELL|BP|BENSIN|PARKIR|TOLL|GRAB|GOJEK|MAXIM|TRANSPORT/.test(upperText)) {
+      category = "Transportasi";
+    } else if (/INDOMARET|ALFAMART|ALFAMIDI|SUPERINDO|HYPERMART|TRANSMART|MINIMARKET|SUPERMARKET|GROCERY/.test(upperText)) {
+      category = "Belanja Kebutuhan Rumah";
+    } else if (/APOTEK|KIMIA\s*FARMA|KLINIK|RUMAH\s*SAKIT|DOKTER|OBAT|FARMASI|HEALTH/.test(upperText)) {
+      category = "Kesehatan";
+    } else if (/GUARDIAN|WATSON|BEAUTY|SKINCARE|COSMETIC|MAKEUP|SALON|BARBER/.test(upperText)) {
+      category = "Skincare & Kosmetik";
+    } else if (/BIOSKOP|CINEMA|XXI|CGV|CINEPOLIS|GAME|TIMEZONE|HIBURAN/.test(upperText)) {
+      category = "Hiburan & Hobi";
+    } else if (/FASHION|ZARA|UNIQLO|H&M|MATAHARI|BAJU|SEPATU|DISTRO/.test(upperText)) {
+      category = "Pakaian & Penampilan";
+    } else if (/BUKU|GRAMEDIA|SEKOLAH|KURSUS|KULIAH|TOKO\s*BUKU/.test(upperText)) {
+      category = "Pendidikan";
+    }
+
+    if (merchant) {
+      note = category ? `${merchant} (${category})` : merchant;
+    } else {
+      note = "Belanja struk";
+    }
+
+    return { amount, date, merchant, category, note };
+  }
+
+  function matchAndSelectCategory(suggestedCategory) {
+    if (!suggestedCategory || !DOM.selectCategory) return;
+    const cleanCat = suggestedCategory.trim().toLowerCase();
+    const options = Array.from(DOM.selectCategory.options);
+
+    // 1. Exact match
+    let matchedOption = options.find(opt => opt.value.trim().toLowerCase() === cleanCat || opt.textContent.trim().toLowerCase() === cleanCat);
+
+    // 2. Partial match
+    if (!matchedOption) {
+      matchedOption = options.find(opt => {
+        const val = opt.value.trim().toLowerCase();
+        const text = opt.textContent.trim().toLowerCase();
+        return val.includes(cleanCat) || cleanCat.includes(val) || text.includes(cleanCat) || cleanCat.includes(text);
+      });
+    }
+
+    if (matchedOption) {
+      DOM.selectCategory.value = matchedOption.value;
+    }
+  }
+
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tesseractLoadingPromise) return tesseractLoadingPromise;
+
+    tesseractLoadingPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      script.async = true;
+      script.onload = () => {
+        if (window.Tesseract) resolve(window.Tesseract);
+        else reject(new Error("Pustaka Tesseract tidak ditemukan setelah pemuatan"));
+      };
+      script.onerror = () => reject(new Error("Gagal mengunduh pustaka OCR lokal"));
+      document.head.appendChild(script);
+    });
+
+    return tesseractLoadingPromise;
+  }
+
+  async function parseReceiptLocally(imageDataUrl) {
+    try {
+      const tesseract = await loadTesseract();
+      const worker = await tesseract.createWorker("ind+eng", 1, {
+        logger: m => {
+          if (m && m.status && DOM.scanStatusTitle) {
+            if (m.status === "recognizing text") {
+              const pct = Math.round((m.progress || 0) * 100);
+              DOM.scanStatusTitle.textContent = `Membaca teks struk... ${pct}%`;
+            }
+          }
+        }
+      });
+      const ret = await worker.recognize(imageDataUrl);
+      await worker.terminate();
+      const text = ret?.data?.text || "";
+      return extractReceiptDataFromText(text);
+    } catch (err) {
+      console.warn("OCR lokal Tesseract gagal atau offline:", err);
+      return { amount: 0, date: "", merchant: "", category: "", note: "" };
+    }
+  }
+
+  async function directGeminiVisionScan(imageBase64, apiKey) {
+    let mimeType = "image/jpeg";
+    let pureBase64 = imageBase64;
+    if (imageBase64.indexOf("data:") === 0) {
+      const match = imageBase64.match(/^data:([^;]+);base64,/);
+      if (match) {
+        mimeType = match[1];
+        pureBase64 = imageBase64.substring(match[0].length);
+      }
+    }
+
+    const promptText = "Kamu adalah asisten keuangan pribadi cerdas. Analisis foto struk/nota pembayaran ini dengan sangat teliti. Ekstrak informasi transaksi belanja:\n" +
+      "1. amount: Total pembayaran akhir (Grand Total / Total Bayar) yang sebenarnya dibayarkan oleh pembeli, dalam bentuk ANGKA bulat/desimal murni tanpa simbol 'Rp', tanda titik ribuan, atau koma (contoh: 45000). Jangan ambil subtotal, diskon, atau jumlah uang tunai yang diserahkan.\n" +
+      "2. date: Tanggal transaksi dalam format standar YYYY-MM-DD. Jika tahun tidak tertera, gunakan tahun berjalan. Jika tanggal tidak dapat dibaca, isi string kosong \"\".\n" +
+      "3. merchant: Nama toko, warung, restoran, atau merchant (contoh: \"Indomaret\", \"SPBU Pertamina\", \"Kopi Kenangan\"). Jika tidak tertera, isi string kosong \"\".\n" +
+      "4. category: Rekomendasi kategori pengeluaran yang paling relevan (pilihan: \"Makan & Minum\", \"Transportasi\", \"Belanja Kebutuhan Rumah\", \"Hiburan & Hobi\", \"Kesehatan\", \"Pakaian & Penampilan\", \"Pendidikan\", \"Skincare & Kosmetik\").\n" +
+      "5. note: Ringkasan singkat transaksi (contoh: \"Indomaret - Belanja snack & sabun\").\n\n" +
+      "Jawab HANYA dalam format JSON valid tanpa tanda backtick atau markdown: {\"amount\": 0, \"date\": \"\", \"merchant\": \"\", \"category\": \"\", \"note\": \"\"}";
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: promptText },
+            { inline_data: { mime_type: mimeType, data: pureBase64 } }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          response_mime_type: "application/json"
+        }
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini Vision Error (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json();
+    const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    const cleaned = rawJson.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+    const parsed = JSON.parse(cleaned);
+
+    return {
+      amount: Number(parsed.amount) || 0,
+      date: parsed.date || "",
+      merchant: parsed.merchant || "",
+      category: parsed.category || "",
+      note: parsed.note || (parsed.merchant ? parsed.merchant : "Belanja struk")
+    };
+  }
+
+  async function executeReceiptScan(file) {
+    if (!file) return;
+    activeScanCancelled = false;
+
+    if (DOM.btnScanReceipt) DOM.btnScanReceipt.style.display = "none";
+    if (DOM.scanReceiptStatus) DOM.scanReceiptStatus.style.display = "flex";
+    if (DOM.scanStatusTitle) DOM.scanStatusTitle.textContent = "Mengompresi foto...";
+
+    const apiKey = APP_CONFIG.getGeminiKey();
+    const isOnline = navigator.onLine;
+    let modeText = isOnline && apiKey ? "Mode AI (Gemini 1.5 Flash)" : "Mode Lokal (Offline OCR)";
+    if (DOM.scanStatusMode) DOM.scanStatusMode.textContent = modeText;
+
+    try {
+      const compressedDataUrl = await compressReceiptImage(file, 1200, 0.75);
+      if (activeScanCancelled) return;
+
+      if (DOM.scanStatusTitle) DOM.scanStatusTitle.textContent = "Menganalisis struk...";
+
+      let scanResult = null;
+      let usedMode = "AI";
+
+      if (isOnline && apiKey) {
+        try {
+          if (API.isConfigured()) {
+            try {
+              const res = await API.scanReceipt(compressedDataUrl, apiKey);
+              if (res && res.data) {
+                scanResult = res.data;
+              }
+            } catch (backendErr) {
+              console.warn("Apps Script scanReceipt gagal, mencoba direct Gemini REST...", backendErr);
+              scanResult = await directGeminiVisionScan(compressedDataUrl, apiKey);
+            }
+          } else {
+            scanResult = await directGeminiVisionScan(compressedDataUrl, apiKey);
+          }
+        } catch (aiErr) {
+          console.warn("AI Gemini Scan gagal, beralih ke OCR lokal:", aiErr);
+          usedMode = "Lokal";
+          if (DOM.scanStatusMode) DOM.scanStatusMode.textContent = "Beralih ke Mode Lokal...";
+          scanResult = await parseReceiptLocally(compressedDataUrl);
+        }
+      } else {
+        usedMode = "Lokal";
+        if (DOM.scanStatusMode) DOM.scanStatusMode.textContent = "Mode Lokal (Offline OCR)";
+        scanResult = await parseReceiptLocally(compressedDataUrl);
+      }
+
+      if (activeScanCancelled) return;
+
+      if (scanResult && (scanResult.amount || scanResult.merchant || scanResult.note)) {
+        setTransactionFormType("Pengeluaran");
+
+        if (scanResult.amount && Number(scanResult.amount) > 0) {
+          DOM.inputNominal.value = formatRupiah(scanResult.amount).replace("Rp ", "");
+        }
+
+        if (scanResult.date && /^\d{4}-\d{2}-\d{2}$/.test(scanResult.date)) {
+          DOM.inputDate.value = scanResult.date;
+        }
+
+        if (scanResult.note) {
+          DOM.inputNote.value = scanResult.note;
+        } else if (scanResult.merchant) {
+          DOM.inputNote.value = scanResult.merchant;
+        }
+
+        if (scanResult.category) {
+          matchAndSelectCategory(scanResult.category);
+        }
+
+        if (navigator.vibrate) {
+          try { navigator.vibrate(50); } catch (e) {}
+        }
+
+        if (scanResult.amount && Number(scanResult.amount) > 0) {
+          showToast(`Struk dipindai (${usedMode}): ${formatRupiah(scanResult.amount)}. Periksa & pilih dompet.`, "success");
+        } else {
+          showToast(`Informasi struk terbaca (${usedMode}). Silakan isi nominal.`, "info");
+        }
+      } else {
+        showToast("Teks struk tidak terbaca jelas. Silakan masukkan nominal manual.", "info");
+      }
+    } catch (err) {
+      console.error("Gagal memproses struk:", err);
+      if (!activeScanCancelled) {
+        showToast("Terjadi kendala saat memindai. Silakan isi manual.", "error");
+      }
+    } finally {
+      if (DOM.scanReceiptStatus) DOM.scanReceiptStatus.style.display = "none";
+      if (DOM.btnScanReceipt && !state.isEditing) DOM.btnScanReceipt.style.display = "flex";
+      if (DOM.inputReceiptFile) DOM.inputReceiptFile.value = "";
+    }
   }
 
   function updateConnectionBadge() {
@@ -536,6 +934,15 @@
       DOM.groupTransferWallets.style.display = "block";
       populateWalletDropdowns();
     }
+
+    // Tampilkan / sembunyikan pemindai struk (hanya untuk tambah Pengeluaran/Pemasukan)
+    if (DOM.btnScanReceipt) {
+      if (!state.isEditing && (type === "Pengeluaran" || type === "Pemasukan")) {
+        DOM.btnScanReceipt.style.display = "flex";
+      } else {
+        DOM.btnScanReceipt.style.display = "none";
+      }
+    }
   }
 
   function openQuickAddModal() {
@@ -547,6 +954,10 @@
     DOM.inputNominal.value = "";
     DOM.inputNote.value = "";
     DOM.inputDate.value = toInputDateString(new Date());
+
+    if (DOM.btnScanReceipt) DOM.btnScanReceipt.style.display = "flex";
+    if (DOM.scanReceiptStatus) DOM.scanReceiptStatus.style.display = "none";
+    if (DOM.inputReceiptFile) DOM.inputReceiptFile.value = "";
 
     setTransactionFormType("Pengeluaran");
     openModal(DOM.modalTx);
@@ -1661,6 +2072,10 @@
     DOM.modalTxTitle.textContent = "Edit Transaksi";
     DOM.btnSubmitTx.querySelector("span").textContent = "Simpan Perubahan";
 
+    if (DOM.btnScanReceipt) DOM.btnScanReceipt.style.display = "none";
+    if (DOM.scanReceiptStatus) DOM.scanReceiptStatus.style.display = "none";
+    if (DOM.inputReceiptFile) DOM.inputReceiptFile.value = "";
+
     setTransactionFormType(item.type);
     DOM.inputNominal.value = formatRupiah(item.amount).replace("Rp ", "");
     DOM.inputDate.value = toInputDateString(parseSheetDate(item.date));
@@ -1936,6 +2351,33 @@
         renderHistoryList();
       });
     });
+
+    // Pemindai Struk / Nota Belanja (Hybrid OCR)
+    if (DOM.btnScanReceipt && DOM.inputReceiptFile) {
+      DOM.btnScanReceipt.addEventListener("click", () => {
+        DOM.inputReceiptFile.click();
+      });
+
+      DOM.btnScanReceipt.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          DOM.inputReceiptFile.click();
+        }
+      });
+
+      DOM.inputReceiptFile.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          executeReceiptScan(file);
+        }
+      });
+    }
+
+    if (DOM.btnCancelScan) {
+      DOM.btnCancelScan.addEventListener("click", () => {
+        cancelReceiptScan();
+      });
+    }
 
     // Form Toggle: Pengeluaran / Pemasukan / Pindah Dana
     DOM.toggleTypeExpense.addEventListener("click", () => setTransactionFormType("Pengeluaran"));
@@ -2488,6 +2930,9 @@
     DOM.btnOpenSettings.addEventListener("click", () => {
       DOM.settingsScriptUrl.value = APP_CONFIG.getScriptUrl();
       DOM.settingsSecretToken.value = APP_CONFIG.getSecretToken();
+      if (DOM.settingsGeminiKey) {
+        DOM.settingsGeminiKey.value = APP_CONFIG.getGeminiKey();
+      }
       openModal(DOM.modalSettings);
     });
 
@@ -2495,8 +2940,12 @@
       e.preventDefault();
       const url = DOM.settingsScriptUrl.value.trim();
       const token = DOM.settingsSecretToken.value.trim();
+      const geminiKey = DOM.settingsGeminiKey ? DOM.settingsGeminiKey.value.trim() : "";
 
       APP_CONFIG.saveCredentials(url, token);
+      if (DOM.settingsGeminiKey) {
+        APP_CONFIG.saveGeminiKey(geminiKey);
+      }
       closeModal(DOM.modalSettings);
       showToast("Pengaturan disimpan. Menghubungkan...", "success");
       await loadData();
