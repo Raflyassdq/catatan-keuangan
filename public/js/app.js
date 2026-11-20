@@ -6,6 +6,15 @@
 (function () {
   "use strict";
 
+  const MONTH_NAMES_ID = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  const MONTH_SHORT_ID = [
+    "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+    "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
+  ];
+
   // State Aplikasi
   const state = {
     transactions: [],
@@ -19,6 +28,9 @@
     walletOrder: APP_CONFIG.getWalletOrder(),
     donutCategoryType: "Pengeluaran",
     selectedPeriod: "this-month",
+    customMonth: new Date().getMonth(),
+    customYear: new Date().getFullYear(),
+    pickerYear: new Date().getFullYear(),
     historyTypeFilter: "all",
     searchQuery: "",
     activeTransaction: null,
@@ -68,6 +80,7 @@
     walletSortPills: document.querySelectorAll(".wallet-sort-pill[data-wallet-sort]"),
 
     // Insights
+    topIncome: document.getElementById("insight-top-income"),
     topExpense: document.getElementById("insight-top-expense"),
     dailyAverage: document.getElementById("insight-daily-average"),
 
@@ -213,6 +226,16 @@
     inputPayDebtDate: document.getElementById("input-pay-debt-date"),
     inputPayDebtNote: document.getElementById("input-pay-debt-note"),
     btnSubmitPayDebt: document.getElementById("btn-submit-pay-debt"),
+
+    // Modal Pemilih Bulan
+    btnFilterCustomMonth: document.getElementById("btn-filter-custom-month"),
+    modalMonthPicker: document.getElementById("modal-month-picker"),
+    btnCloseMonthPicker: document.getElementById("btn-close-month-picker"),
+    btnPickerPrevYear: document.getElementById("btn-picker-prev-year"),
+    btnPickerNextYear: document.getElementById("btn-picker-next-year"),
+    pickerYearDisplay: document.getElementById("picker-year-display"),
+    pickerMonthButtons: document.querySelectorAll(".month-picker-btn"),
+    btnPickerCurrentMonth: document.getElementById("btn-picker-current-month"),
 
     // Toast
     toastContainer: document.getElementById("toast-container")
@@ -1192,6 +1215,13 @@
         );
       }
 
+      if (period === "custom-month") {
+        return (
+          itemDate.getMonth() === state.customMonth &&
+          itemDate.getFullYear() === state.customYear
+        );
+      }
+
       return true;
     });
   }
@@ -1238,9 +1268,23 @@
       "this-month": "Bulan Ini",
       all: "Semua Waktu"
     };
-    DOM.periodText.textContent = `Periode: ${periodLabels[state.selectedPeriod] || "Bulan Ini"}`;
+
+    if (state.selectedPeriod === "custom-month") {
+      DOM.periodText.textContent = `Periode: ${MONTH_NAMES_ID[state.customMonth]} ${state.customYear}`;
+    } else {
+      DOM.periodText.textContent = `Periode: ${periodLabels[state.selectedPeriod] || "Bulan Ini"}`;
+    }
 
     // Insights
+    const sortedIncome = Object.entries(categoryIncomeTotals).sort((a, b) => b[1] - a[1]);
+    if (DOM.topIncome) {
+      if (sortedIncome.length > 0) {
+        DOM.topIncome.textContent = `${sortedIncome[0][0]} (${formatRupiah(sortedIncome[0][1])})`;
+      } else {
+        DOM.topIncome.textContent = "Belum ada pemasukan";
+      }
+    }
+
     const sortedCategories = Object.entries(categoryExpenseTotals).sort((a, b) => b[1] - a[1]);
     if (sortedCategories.length > 0) {
       DOM.topExpense.textContent = `${sortedCategories[0][0]} (${formatRupiah(sortedCategories[0][1])})`;
@@ -1250,10 +1294,22 @@
 
     const now = new Date();
     let divisor = 1;
-    if (state.selectedPeriod === "this-month") divisor = Math.max(1, now.getDate());
-    else if (state.selectedPeriod === "this-week") divisor = Math.max(1, now.getDay() || 7);
-    else if (state.selectedPeriod === "today") divisor = 1;
-    else divisor = 30;
+    if (state.selectedPeriod === "this-month") {
+      divisor = Math.max(1, now.getDate());
+    } else if (state.selectedPeriod === "custom-month") {
+      const isCurrentMonthAndYear = state.customMonth === now.getMonth() && state.customYear === now.getFullYear();
+      if (isCurrentMonthAndYear) {
+        divisor = Math.max(1, now.getDate());
+      } else {
+        divisor = new Date(state.customYear, state.customMonth + 1, 0).getDate();
+      }
+    } else if (state.selectedPeriod === "this-week") {
+      divisor = Math.max(1, now.getDay() || 7);
+    } else if (state.selectedPeriod === "today") {
+      divisor = 1;
+    } else {
+      divisor = 30;
+    }
 
     const avgDaily = Math.round(totalExp / divisor);
     DOM.dailyAverage.textContent = totalExp > 0 ? `${formatRupiah(avgDaily)} / hari` : "Rp 0 / hari";
@@ -1628,6 +1684,35 @@
     }
   }
 
+  /**
+   * Render & Sinkronisasi Tampilan Modal Pemilih Bulan
+   */
+  function renderMonthPicker() {
+    if (DOM.pickerYearDisplay) {
+      DOM.pickerYearDisplay.textContent = state.pickerYear;
+    }
+    if (DOM.pickerMonthButtons) {
+      DOM.pickerMonthButtons.forEach((btn) => {
+        const m = Number(btn.dataset.month);
+        const isSelected =
+          state.selectedPeriod === "custom-month" &&
+          state.customMonth === m &&
+          state.customYear === state.pickerYear;
+        if (isSelected) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      });
+    }
+  }
+
+  function openMonthPickerModal() {
+    state.pickerYear = state.customYear;
+    renderMonthPicker();
+    openModal(DOM.modalMonthPicker);
+  }
+
   function initEvents() {
     // Navigasi Bottom
     DOM.navTabDashboard.addEventListener("click", () => switchView("dashboard"));
@@ -1637,16 +1722,93 @@
     // Filter Periode
     DOM.periodButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (btn.dataset.period === "custom-month") {
+          openMonthPickerModal();
+          return;
+        }
+
         DOM.periodButtons.forEach((b) => {
           b.classList.remove("active");
           b.setAttribute("aria-selected", "false");
         });
         btn.classList.add("active");
         btn.setAttribute("aria-selected", "true");
+
+        if (DOM.btnFilterCustomMonth) {
+          DOM.btnFilterCustomMonth.textContent = "📅 Pilih Bulan";
+        }
+
         state.selectedPeriod = btn.dataset.period;
         renderDashboard();
       });
     });
+
+    // Navigasi & Interaksi Modal Pemilih Bulan
+    if (DOM.btnPickerPrevYear) {
+      DOM.btnPickerPrevYear.addEventListener("click", () => {
+        state.pickerYear--;
+        renderMonthPicker();
+      });
+    }
+
+    if (DOM.btnPickerNextYear) {
+      DOM.btnPickerNextYear.addEventListener("click", () => {
+        state.pickerYear++;
+        renderMonthPicker();
+      });
+    }
+
+    if (DOM.pickerMonthButtons) {
+      DOM.pickerMonthButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const selectedM = Number(btn.dataset.month);
+          state.customMonth = selectedM;
+          state.customYear = state.pickerYear;
+          state.selectedPeriod = "custom-month";
+
+          DOM.periodButtons.forEach((b) => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+          });
+
+          if (DOM.btnFilterCustomMonth) {
+            DOM.btnFilterCustomMonth.classList.add("active");
+            DOM.btnFilterCustomMonth.setAttribute("aria-selected", "true");
+            DOM.btnFilterCustomMonth.textContent = `📅 ${MONTH_SHORT_ID[selectedM]} ${state.customYear}`;
+          }
+
+          closeModal(DOM.modalMonthPicker);
+          renderDashboard();
+        });
+      });
+    }
+
+    if (DOM.btnPickerCurrentMonth) {
+      DOM.btnPickerCurrentMonth.addEventListener("click", () => {
+        const now = new Date();
+        state.customMonth = now.getMonth();
+        state.customYear = now.getFullYear();
+        state.pickerYear = now.getFullYear();
+        state.selectedPeriod = "this-month";
+
+        DOM.periodButtons.forEach((b) => {
+          const isThisMonth = b.dataset.period === "this-month";
+          b.classList.toggle("active", isThisMonth);
+          b.setAttribute("aria-selected", isThisMonth ? "true" : "false");
+        });
+
+        if (DOM.btnFilterCustomMonth) {
+          DOM.btnFilterCustomMonth.textContent = "📅 Pilih Bulan";
+        }
+
+        closeModal(DOM.modalMonthPicker);
+        renderDashboard();
+      });
+    }
+
+    if (DOM.btnCloseMonthPicker) {
+      DOM.btnCloseMonthPicker.addEventListener("click", () => closeModal(DOM.modalMonthPicker));
+    }
 
     // Toggle Kategori Grafik Donut (Pengeluaran / Pemasukan)
     if (DOM.btnChartExpense) {
@@ -2160,7 +2322,8 @@
       DOM.modalDebtsList,
       DOM.modalAddDebt,
       DOM.modalPayDebt,
-      DOM.modalSortWallets
+      DOM.modalSortWallets,
+      DOM.modalMonthPicker
     ].filter(Boolean).forEach((modal) => {
       modal.addEventListener("click", (e) => {
         if (e.target === modal) closeModal(modal);
@@ -2259,7 +2422,8 @@
           DOM.modalDebtsList,
           DOM.modalAddDebt,
           DOM.modalPayDebt,
-          DOM.modalSortWallets
+          DOM.modalSortWallets,
+          DOM.modalMonthPicker
         ].filter(Boolean).forEach(closeModal);
       }
     });
