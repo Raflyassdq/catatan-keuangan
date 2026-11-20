@@ -38,7 +38,7 @@
   </script>
 
   <!-- App Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=15">
+  <link rel="stylesheet" href="css/style.css?v=18">
 </head>
 <body>
 
@@ -353,6 +353,31 @@
       </div>
 
       <form id="form-transaction">
+        <!-- Tombol Kartu Pindai Struk (OCR Scanner) -->
+        <div id="btn-scan-receipt" class="scan-receipt-card" role="button" tabindex="0" aria-label="Pindai Struk atau Nota Belanja">
+          <input type="file" id="input-receipt-file" accept="image/*" capture="environment" style="display: none;">
+          <div class="scan-receipt-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+          <div class="scan-receipt-info">
+            <div class="scan-receipt-title">Pindai Struk / Nota</div>
+            <div class="scan-receipt-desc">Foto struk untuk isi otomatis nominal, tanggal, & toko</div>
+          </div>
+        </div>
+
+        <!-- Banner Status Pemindaian -->
+        <div id="scan-receipt-status" class="scan-receipt-status" style="display: none;">
+          <div class="scan-spinner"></div>
+          <div class="scan-status-info">
+            <div id="scan-status-title" class="scan-status-title">Menganalisis struk...</div>
+            <div id="scan-status-mode" class="scan-status-mode">Mode AI (Gemini Vision)</div>
+          </div>
+          <button type="button" id="btn-cancel-scan" class="btn-cancel-scan" aria-label="Batalkan pemindaian">Batal</button>
+        </div>
+
         <!-- Toggle Jenis Transaksi: Pengeluaran / Pemasukan / Pindah Dana -->
         <div class="type-toggle-wrapper" role="radiogroup" aria-label="Jenis Transaksi">
           <button type="button" id="toggle-type-expense" class="type-toggle-btn active expense">Pengeluaran</button>
@@ -683,6 +708,14 @@
           <input type="text" id="settings-secret-token" class="form-input" value="SECRET_KEUANGAN_2026" required>
         </div>
 
+        <div class="form-group">
+          <label for="settings-gemini-key" class="form-label">Gemini API Key (Opsional untuk AI Scan)</label>
+          <input type="password" id="settings-gemini-key" class="form-input" placeholder="Tempel API key gratis dari Google AI Studio">
+          <p style="font-size: 0.76rem; color: var(--color-text-subtle); margin-top: 4px; line-height: 1.35;">
+            Dapatkan gratis di <strong>aistudio.google.com</strong>. Jika kosong atau sedang offline, pemindai otomatis menggunakan mode lokal di HP.
+          </p>
+        </div>
+
         <button type="submit" class="btn-submit">
           <span>Simpan & Tes Koneksi</span>
         </button>
@@ -905,8 +938,8 @@
   </div>
 
   <!-- Core Scripts -->
-  <script src="js/config.js?v=17"></script>
-  <script src="js/api.js?v=17"></script>
-  <script src="js/app.js?v=17"></script>
+  <script src="js/config.js?v=18"></script>
+  <script src="js/api.js?v=18"></script>
+  <script src="js/app.js?v=18"></script>
 </body>
 </html>

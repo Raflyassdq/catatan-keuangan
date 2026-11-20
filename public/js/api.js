@@ -117,6 +117,19 @@ const API = {
   },
 
   /**
+   * Pindai Struk dengan Gemini Vision API via Apps Script
+   */
+  async scanReceipt(imageBase64, apiKey) {
+    const payload = {
+      token: APP_CONFIG.getSecretToken(),
+      action: "scanReceipt",
+      image: imageBase64,
+      apiKey: apiKey || APP_CONFIG.getGeminiKey()
+    };
+    return this.postRequest(payload);
+  },
+
+  /**
    * Menyimpan transaksi baru (Pemasukan / Pengeluaran)
    */
   async addTransaction(transactionData) {

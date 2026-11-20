@@ -76,5 +76,15 @@ const APP_CONFIG = {
 
   saveTheme(theme) {
     localStorage.setItem("cfg_theme", theme === "blue" ? "blue" : "pink");
+  },
+
+  getGeminiKey() {
+    return localStorage.getItem("cfg_gemini_key") || "";
+  },
+
+  saveGeminiKey(key) {
+    if (key !== undefined) {
+      localStorage.setItem("cfg_gemini_key", (key || "").trim());
+    }
   }
 };
