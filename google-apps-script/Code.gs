@@ -464,9 +464,147 @@ function doPost(e) {
       return createJsonResponse({ status: "success", message: "Transaksi berhasil dihapus" });
     }
 
+    // 10. PEMINDAI STRUK (RECEIPT SCANNER DENGAN GEMINI VISION)
+    if (action === "scanReceipt") {
+      return handleReceiptScan(payload);
+    }
+
     return createJsonResponse({ status: "error", message: "Action tidak dikenali: " + action });
   } catch (error) {
     return createJsonResponse({ status: "error", message: error.toString() });
+  }
+}
+
+/**
+ * Analisis Foto Struk Belanja menggunakan Google Gemini 1.5 Flash Vision REST API
+ */
+function handleReceiptScan(payload) {
+  try {
+    const apiKey = (payload.apiKey || "").trim() || PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+    if (!apiKey) {
+      return createJsonResponse({
+        status: "error",
+        message: "API Key Gemini belum disetel. Masukkan API Key di menu Pengaturan atau gunakan mode offline."
+      });
+    }
+
+    let imageBase64 = payload.image || (payload.data && payload.data.image) || "";
+    if (!imageBase64) {
+      return createJsonResponse({
+        status: "error",
+        message: "Data gambar struk tidak ditemukan."
+      });
+    }
+
+    let mimeType = "image/jpeg";
+    if (imageBase64.indexOf("data:") === 0) {
+      const match = imageBase64.match(/^data:([^;]+);base64,/);
+      if (match) {
+        mimeType = match[1];
+        imageBase64 = imageBase64.substring(match[0].length);
+      }
+    }
+
+    const geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + encodeURIComponent(apiKey);
+
+    const promptText = "Kamu adalah asisten keuangan pribadi cerdas. Analisis foto struk/nota pembayaran ini dengan sangat teliti. Ekstrak informasi transaksi belanja:\n" +
+      "1. amount: Total pembayaran akhir (Grand Total / Total Bayar) yang sebenarnya dibayarkan oleh pembeli, dalam bentuk ANGKA bulat/desimal murni tanpa simbol 'Rp', tanda titik ribuan, atau koma (contoh: 45000). Jangan ambil subtotal, diskon, atau jumlah uang tunai yang diserahkan.\n" +
+      "2. date: Tanggal transaksi dalam format standar YYYY-MM-DD. Jika tahun tidak tertera, gunakan tahun berjalan. Jika tanggal tidak dapat dibaca, isi string kosong \"\".\n" +
+      "3. merchant: Nama toko, warung, restoran, atau merchant (contoh: \"Indomaret\", \"SPBU Pertamina\", \"Kopi Kenangan\"). Jika tidak tertera, isi string kosong \"\".\n" +
+      "4. category: Rekomendasi kategori pengeluaran yang paling relevan (pilihan: \"Makan & Minum\", \"Transportasi\", \"Belanja Kebutuhan Rumah\", \"Hiburan & Hobi\", \"Kesehatan\", \"Pakaian & Penampilan\", \"Pendidikan\", \"Skincare & Kosmetik\").\n" +
+      "5. note: Ringkasan singkat transaksi (contoh: \"Indomaret - Belanja snack & sabun\").\n\n" +
+      "Jawab HANYA dalam format JSON valid tanpa tanda backtick atau markdown: {\"amount\": 0, \"date\": \"\", \"merchant\": \"\", \"category\": \"\", \"note\": \"\"}";
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            { text: promptText },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: imageBase64
+              }
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        response_mime_type: "application/json"
+      }
+    };
+
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(requestBody),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(geminiUrl, options);
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+
+    if (responseCode !== 200) {
+      let errDetail = responseText;
+      try {
+        const errObj = JSON.parse(responseText);
+        if (errObj.error && errObj.error.message) errDetail = errObj.error.message;
+      } catch (e) {}
+      return createJsonResponse({
+        status: "error",
+        message: "Gemini API Error (" + responseCode + "): " + errDetail
+      });
+    }
+
+    const geminiData = JSON.parse(responseText);
+    const candidates = geminiData.candidates;
+    if (!candidates || candidates.length === 0 || !candidates[0].content || !candidates[0].content.parts || candidates[0].content.parts.length === 0) {
+      return createJsonResponse({
+        status: "error",
+        message: "Tidak ada respons teks yang dihasilkan dari analisis struk."
+      });
+    }
+
+    let rawJson = candidates[0].content.parts[0].text.trim();
+    rawJson = rawJson.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    let parsedResult = {};
+    try {
+      parsedResult = JSON.parse(rawJson);
+    } catch (parseErr) {
+      const amountMatch = rawJson.match(/"amount"\s*:\s*([0-9.]+)/i);
+      const dateMatch = rawJson.match(/"date"\s*:\s*"([^"]+)"/i);
+      const merchantMatch = rawJson.match(/"merchant"\s*:\s*"([^"]+)"/i);
+      const categoryMatch = rawJson.match(/"category"\s*:\s*"([^"]+)"/i);
+      const noteMatch = rawJson.match(/"note"\s*:\s*"([^"]+)"/i);
+
+      parsedResult = {
+        amount: amountMatch ? Number(amountMatch[1]) : 0,
+        date: dateMatch ? dateMatch[1] : "",
+        merchant: merchantMatch ? merchantMatch[1] : "",
+        category: categoryMatch ? categoryMatch[1] : "",
+        note: noteMatch ? noteMatch[1] : ""
+      };
+    }
+
+    return createJsonResponse({
+      status: "success",
+      message: "Struk berhasil dipindai dengan Gemini Vision",
+      data: {
+        amount: Number(parsedResult.amount) || 0,
+        date: parsedResult.date || "",
+        merchant: parsedResult.merchant || "",
+        category: parsedResult.category || "",
+        note: parsedResult.note || (parsedResult.merchant ? parsedResult.merchant : "Belanja struk")
+      }
+    });
+  } catch (err) {
+    return createJsonResponse({
+      status: "error",
+      message: "Gagal memproses struk: " + err.toString()
+    });
   }
 }
 
