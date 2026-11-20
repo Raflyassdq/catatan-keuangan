@@ -31,6 +31,9 @@
     customMonth: new Date().getMonth(),
     customYear: new Date().getFullYear(),
     pickerYear: new Date().getFullYear(),
+    rangeStartMonth: new Date().getMonth(),
+    rangeEndMonth: new Date().getMonth(),
+    rangeSelectionStep: "start",
     historyTypeFilter: "all",
     searchQuery: "",
     activeTransaction: null,
@@ -227,14 +230,18 @@
     inputPayDebtNote: document.getElementById("input-pay-debt-note"),
     btnSubmitPayDebt: document.getElementById("btn-submit-pay-debt"),
 
-    // Modal Pemilih Bulan
+    // Modal Pemilih Bulan & Rentang
     btnFilterCustomMonth: document.getElementById("btn-filter-custom-month"),
+    btnFilterHistoryCustomMonth: document.getElementById("btn-filter-history-custom-month"),
+    historyPeriodBar: document.getElementById("history-period-bar"),
     modalMonthPicker: document.getElementById("modal-month-picker"),
     btnCloseMonthPicker: document.getElementById("btn-close-month-picker"),
     btnPickerPrevYear: document.getElementById("btn-picker-prev-year"),
     btnPickerNextYear: document.getElementById("btn-picker-next-year"),
     pickerYearDisplay: document.getElementById("picker-year-display"),
+    pickerRangeStatus: document.getElementById("picker-range-status"),
     pickerMonthButtons: document.querySelectorAll(".month-picker-btn"),
+    btnApplyMonthRange: document.getElementById("btn-apply-month-range"),
     btnPickerCurrentMonth: document.getElementById("btn-picker-current-month"),
 
     // Toast
@@ -1685,30 +1692,70 @@
   }
 
   /**
-   * Render & Sinkronisasi Tampilan Modal Pemilih Bulan
+   * Sinkronisasi status aktif tombol filter periode pada Dashboard & Riwayat
+   */
+  function updatePeriodPillState(periodKey, customPillText) {
+    const allPeriodButtons = document.querySelectorAll(".filter-pill[data-period]");
+    allPeriodButtons.forEach((btn) => {
+      const isCustom = btn.dataset.period === "custom-month";
+      if (btn.dataset.period === periodKey) {
+        btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
+      } else {
+        btn.classList.remove("active");
+        btn.setAttribute("aria-selected", "false");
+      }
+      if (isCustom) {
+        btn.textContent = customPillText || "📅 Pilih Bulan";
+      }
+    });
+  }
+
+  /**
+   * Render & Sinkronisasi Tampilan Modal Pemilih Bulan & Rentang
    */
   function renderMonthPicker() {
     if (DOM.pickerYearDisplay) {
       DOM.pickerYearDisplay.textContent = state.pickerYear;
     }
+
+    const s = Math.min(state.rangeStartMonth, state.rangeEndMonth);
+    const e = Math.max(state.rangeStartMonth, state.rangeEndMonth);
+
     if (DOM.pickerMonthButtons) {
       DOM.pickerMonthButtons.forEach((btn) => {
         const m = Number(btn.dataset.month);
-        const isSelected =
-          state.selectedPeriod === "custom-month" &&
-          state.customMonth === m &&
-          state.customYear === state.pickerYear;
-        if (isSelected) {
-          btn.classList.add("active");
-        } else {
-          btn.classList.remove("active");
+        btn.classList.remove("active", "range-start", "range-end", "range-between");
+
+        if (m === s && m === e) {
+          btn.classList.add("range-start", "range-end");
+        } else if (m === s) {
+          btn.classList.add("range-start");
+        } else if (m === e) {
+          btn.classList.add("range-end");
+        } else if (m > s && m < e) {
+          btn.classList.add("range-between");
         }
       });
+    }
+
+    if (DOM.pickerRangeStatus) {
+      if (state.rangeSelectionStep === "end") {
+        DOM.pickerRangeStatus.textContent = `Ketuk bulan akhir (Mulai: ${MONTH_SHORT_ID[state.rangeStartMonth]} ${state.pickerYear})`;
+      } else {
+        if (s === e) {
+          DOM.pickerRangeStatus.textContent = `Bulan Terpilih: ${MONTH_NAMES_ID[s]} ${state.pickerYear}`;
+        } else {
+          const totalMonths = e - s + 1;
+          DOM.pickerRangeStatus.textContent = `Rentang: ${MONTH_SHORT_ID[s]} – ${MONTH_SHORT_ID[e]} ${state.pickerYear} (${totalMonths} Bulan)`;
+        }
+      }
     }
   }
 
   function openMonthPickerModal() {
     state.pickerYear = state.customYear;
+    state.rangeSelectionStep = "start";
     renderMonthPicker();
     openModal(DOM.modalMonthPicker);
   }
@@ -1719,31 +1766,22 @@
     DOM.navTabHistory.addEventListener("click", () => switchView("history"));
     DOM.navBtnAddQuick.addEventListener("click", openQuickAddModal);
 
-    // Filter Periode
-    DOM.periodButtons.forEach((btn) => {
+    // Filter Periode (Dashboard & Riwayat Tersinkronisasi)
+    document.querySelectorAll(".filter-pill[data-period]").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.dataset.period === "custom-month") {
           openMonthPickerModal();
           return;
         }
 
-        DOM.periodButtons.forEach((b) => {
-          b.classList.remove("active");
-          b.setAttribute("aria-selected", "false");
-        });
-        btn.classList.add("active");
-        btn.setAttribute("aria-selected", "true");
-
-        if (DOM.btnFilterCustomMonth) {
-          DOM.btnFilterCustomMonth.textContent = "📅 Pilih Bulan";
-        }
-
         state.selectedPeriod = btn.dataset.period;
+        updatePeriodPillState(state.selectedPeriod, "📅 Pilih Bulan");
         renderDashboard();
+        renderHistoryList();
       });
     });
 
-    // Navigasi & Interaksi Modal Pemilih Bulan
+    // Navigasi & Interaksi Modal Pemilih Bulan & Rentang
     if (DOM.btnPickerPrevYear) {
       DOM.btnPickerPrevYear.addEventListener("click", () => {
         state.pickerYear--;
@@ -1761,25 +1799,47 @@
     if (DOM.pickerMonthButtons) {
       DOM.pickerMonthButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
-          const selectedM = Number(btn.dataset.month);
-          state.customMonth = selectedM;
-          state.customYear = state.pickerYear;
-          state.selectedPeriod = "custom-month";
-
-          DOM.periodButtons.forEach((b) => {
-            b.classList.remove("active");
-            b.setAttribute("aria-selected", "false");
-          });
-
-          if (DOM.btnFilterCustomMonth) {
-            DOM.btnFilterCustomMonth.classList.add("active");
-            DOM.btnFilterCustomMonth.setAttribute("aria-selected", "true");
-            DOM.btnFilterCustomMonth.textContent = `📅 ${MONTH_SHORT_ID[selectedM]} ${state.customYear}`;
+          const m = Number(btn.dataset.month);
+          if (state.rangeSelectionStep === "start") {
+            state.rangeStartMonth = m;
+            state.rangeEndMonth = m;
+            state.rangeSelectionStep = "end";
+          } else {
+            if (m < state.rangeStartMonth) {
+              state.rangeEndMonth = state.rangeStartMonth;
+              state.rangeStartMonth = m;
+            } else {
+              state.rangeEndMonth = m;
+            }
+            state.rangeSelectionStep = "start";
           }
-
-          closeModal(DOM.modalMonthPicker);
-          renderDashboard();
+          renderMonthPicker();
         });
+      });
+    }
+
+    if (DOM.btnApplyMonthRange) {
+      DOM.btnApplyMonthRange.addEventListener("click", () => {
+        const s = Math.min(state.rangeStartMonth, state.rangeEndMonth);
+        const e = Math.max(state.rangeStartMonth, state.rangeEndMonth);
+        state.rangeStartMonth = s;
+        state.rangeEndMonth = e;
+        state.customYear = state.pickerYear;
+
+        let pillText = "";
+        if (s === e) {
+          state.customMonth = s;
+          state.selectedPeriod = "custom-month";
+          pillText = `📅 ${MONTH_SHORT_ID[s]} ${state.customYear}`;
+        } else {
+          state.selectedPeriod = "custom-range";
+          pillText = `📅 ${MONTH_SHORT_ID[s]} – ${MONTH_SHORT_ID[e]} ${state.customYear}`;
+        }
+
+        updatePeriodPillState("custom-month", pillText);
+        closeModal(DOM.modalMonthPicker);
+        renderDashboard();
+        renderHistoryList();
       });
     }
 
@@ -1789,20 +1849,15 @@
         state.customMonth = now.getMonth();
         state.customYear = now.getFullYear();
         state.pickerYear = now.getFullYear();
+        state.rangeStartMonth = now.getMonth();
+        state.rangeEndMonth = now.getMonth();
+        state.rangeSelectionStep = "start";
         state.selectedPeriod = "this-month";
 
-        DOM.periodButtons.forEach((b) => {
-          const isThisMonth = b.dataset.period === "this-month";
-          b.classList.toggle("active", isThisMonth);
-          b.setAttribute("aria-selected", isThisMonth ? "true" : "false");
-        });
-
-        if (DOM.btnFilterCustomMonth) {
-          DOM.btnFilterCustomMonth.textContent = "📅 Pilih Bulan";
-        }
-
+        updatePeriodPillState("this-month", "📅 Pilih Bulan");
         closeModal(DOM.modalMonthPicker);
         renderDashboard();
+        renderHistoryList();
       });
     }
 
