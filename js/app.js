@@ -1182,54 +1182,68 @@
   }
 
   /**
-   * Filter Transaksi Berdasarkan Periode
+   * Cek apakah suatu tanggal transaksi berada dalam periode yang dipilih
    */
-  function getFilteredTransactionsByPeriod() {
+  function isDateInSelectedPeriod(itemDate) {
+    if (!itemDate || isNaN(itemDate.getTime())) return false;
     const now = new Date();
     const period = state.selectedPeriod;
 
+    if (period === "today") {
+      return (
+        itemDate.getDate() === now.getDate() &&
+        itemDate.getMonth() === now.getMonth() &&
+        itemDate.getFullYear() === now.getFullYear()
+      );
+    }
+
+    if (period === "this-week") {
+      const day = now.getDay() || 7;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - day + 1);
+      monday.setHours(0, 0, 0, 0);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      return itemDate >= monday && itemDate <= sunday;
+    }
+
+    if (period === "this-month") {
+      return (
+        itemDate.getMonth() === now.getMonth() &&
+        itemDate.getFullYear() === now.getFullYear()
+      );
+    }
+
+    if (period === "custom-month") {
+      return (
+        itemDate.getMonth() === state.customMonth &&
+        itemDate.getFullYear() === state.customYear
+      );
+    }
+
+    if (period === "custom-range") {
+      const m = itemDate.getMonth();
+      const y = itemDate.getFullYear();
+      const s = Math.min(state.rangeStartMonth, state.rangeEndMonth);
+      const e = Math.max(state.rangeStartMonth, state.rangeEndMonth);
+      return y === state.customYear && m >= s && m <= e;
+    }
+
+    return true; // "all"
+  }
+
+  /**
+   * Filter Transaksi Berdasarkan Periode untuk Dashboard (Transfer diexclude)
+   */
+  function getFilteredTransactionsByPeriod() {
     return state.transactions.filter((item) => {
-      // Transfer tidak dihitung dalam grafik pemasukan/pengeluaran bulanan
+      // Transfer tidak dihitung dalam ringkasan grafik pemasukan/pengeluaran dashboard
       if (item.type === "Transfer") return false;
-
       const itemDate = parseSheetDate(item.date);
-
-      if (period === "today") {
-        return (
-          itemDate.getDate() === now.getDate() &&
-          itemDate.getMonth() === now.getMonth() &&
-          itemDate.getFullYear() === now.getFullYear()
-        );
-      }
-
-      if (period === "this-week") {
-        const day = now.getDay() || 7;
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - day + 1);
-        monday.setHours(0, 0, 0, 0);
-
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        sunday.setHours(23, 59, 59, 999);
-
-        return itemDate >= monday && itemDate <= sunday;
-      }
-
-      if (period === "this-month") {
-        return (
-          itemDate.getMonth() === now.getMonth() &&
-          itemDate.getFullYear() === now.getFullYear()
-        );
-      }
-
-      if (period === "custom-month") {
-        return (
-          itemDate.getMonth() === state.customMonth &&
-          itemDate.getFullYear() === state.customYear
-        );
-      }
-
-      return true;
+      return isDateInSelectedPeriod(itemDate);
     });
   }
 
@@ -1278,6 +1292,11 @@
 
     if (state.selectedPeriod === "custom-month") {
       DOM.periodText.textContent = `Periode: ${MONTH_NAMES_ID[state.customMonth]} ${state.customYear}`;
+    } else if (state.selectedPeriod === "custom-range") {
+      const s = Math.min(state.rangeStartMonth, state.rangeEndMonth);
+      const e = Math.max(state.rangeStartMonth, state.rangeEndMonth);
+      const totalMonths = e - s + 1;
+      DOM.periodText.textContent = `Periode: ${MONTH_NAMES_ID[s]} – ${MONTH_NAMES_ID[e]} ${state.customYear} (${totalMonths} Bulan)`;
     } else {
       DOM.periodText.textContent = `Periode: ${periodLabels[state.selectedPeriod] || "Bulan Ini"}`;
     }
@@ -1310,6 +1329,19 @@
       } else {
         divisor = new Date(state.customYear, state.customMonth + 1, 0).getDate();
       }
+    } else if (state.selectedPeriod === "custom-range") {
+      const s = Math.min(state.rangeStartMonth, state.rangeEndMonth);
+      const e = Math.max(state.rangeStartMonth, state.rangeEndMonth);
+      let totalDays = 0;
+      for (let m = s; m <= e; m++) {
+        const isCur = m === now.getMonth() && state.customYear === now.getFullYear();
+        if (isCur) {
+          totalDays += Math.max(1, now.getDate());
+        } else {
+          totalDays += new Date(state.customYear, m + 1, 0).getDate();
+        }
+      }
+      divisor = Math.max(1, totalDays);
     } else if (state.selectedPeriod === "this-week") {
       divisor = Math.max(1, now.getDay() || 7);
     } else if (state.selectedPeriod === "today") {
@@ -1490,6 +1522,12 @@
 
     let list = [...state.transactions];
 
+    // Filter Periode Waktu (Sinkron dengan Dashboard)
+    list = list.filter((item) => {
+      const itemDate = parseSheetDate(item.date);
+      return isDateInSelectedPeriod(itemDate);
+    });
+
     if (state.historyTypeFilter !== "all") {
       list = list.filter((item) => item.type === state.historyTypeFilter);
     }
@@ -1519,7 +1557,7 @@
         DOM.historyStateDesc.textContent = "Tidak ada transaksi yang cocok dengan kata kunci.";
       } else {
         DOM.historyStateTitle.textContent = "Belum Ada Transaksi";
-        DOM.historyStateDesc.textContent = "Tekan tombol (+) untuk mencatat transaksi baru.";
+        DOM.historyStateDesc.textContent = "Tidak ada transaksi pada periode yang dipilih.";
       }
       return;
     }
