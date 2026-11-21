@@ -602,12 +602,14 @@
       }
     }
 
-    const promptText = "Kamu adalah asisten keuangan pribadi cerdas. Analisis foto struk/nota pembayaran ini dengan sangat teliti. Ekstrak informasi transaksi belanja:\n" +
-      "1. amount: Total pembayaran akhir (Grand Total / Total Bayar) yang sebenarnya dibayarkan oleh pembeli, dalam bentuk ANGKA bulat/desimal murni tanpa simbol 'Rp', tanda titik ribuan, atau koma (contoh: 45000). Jangan ambil subtotal, diskon, atau jumlah uang tunai yang diserahkan.\n" +
-      "2. date: Tanggal transaksi dalam format standar YYYY-MM-DD. Jika tahun tidak tertera, gunakan tahun berjalan. Jika tanggal tidak dapat dibaca, isi string kosong \"\".\n" +
-      "3. merchant: Nama toko, warung, restoran, atau merchant (contoh: \"Indomaret\", \"SPBU Pertamina\", \"Kopi Kenangan\"). Jika tidak tertera, isi string kosong \"\".\n" +
+    const promptText = "Kamu adalah asisten keuangan pribadi cerdas. Analisis foto struk atau nota pembayaran belanja ini dengan sangat teliti. " +
+      "Foto ini bisa berupa struk kasir cetak komputer MAUPUN NOTA KONTAN MANUAL TULISAN TANGAN dengan tabel barang dan coretan pena/pensil.\n\n" +
+      "Ekstrak data transaksi dalam format JSON:\n" +
+      "1. amount: Total pembayaran akhir (Grand Total / Total Bayar / Jumlah Rp di baris total bawah) yang sebenarnya dibayarkan oleh pembeli, dalam bentuk ANGKA bulat murni tanpa simbol 'Rp', titik ribuan, atau koma (contoh: jika tertulis 'Jumlah Rp. 55.000', isi angka 55000). Jangan ambil subtotal atau harga satuan per baris jika ada total akhir.\n" +
+      "2. date: Tanggal transaksi dalam format YYYY-MM-DD. Jika tahun tidak tertulis, gunakan tahun berjalan. Jika tanggal sama sekali tidak ada, isi string kosong \"\".\n" +
+      "3. merchant: Nama toko, warung, atau judul nota jika ada. Jika tidak ada nama toko, buat ringkasan toko/penjual yang wajar atau isi string kosong \"\".\n" +
       "4. category: Rekomendasi kategori pengeluaran yang paling relevan (pilihan: \"Makan & Minum\", \"Transportasi\", \"Belanja Kebutuhan Rumah\", \"Hiburan & Hobi\", \"Kesehatan\", \"Pakaian & Penampilan\", \"Pendidikan\", \"Skincare & Kosmetik\").\n" +
-      "5. note: Ringkasan singkat transaksi (contoh: \"Indomaret - Belanja snack & sabun\").\n\n" +
+      "5. note: Ringkasan singkat transaksi atau daftar nama barang yang dibeli (contoh: \"Roti Sobek, Rinso, Tepung\").\n\n" +
       "Jawab HANYA dalam format JSON valid tanpa tanda backtick atau markdown: {\"amount\": 0, \"date\": \"\", \"merchant\": \"\", \"category\": \"\", \"note\": \"\"}";
 
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
@@ -656,7 +658,8 @@
 
     const apiKey = APP_CONFIG.getGeminiKey();
     const isOnline = navigator.onLine;
-    let modeText = isOnline && apiKey ? "Mode AI (Gemini 1.5 Flash)" : "Mode Lokal (Offline OCR)";
+    const canAttemptAI = isOnline && (Boolean(apiKey) || API.isConfigured());
+    let modeText = canAttemptAI ? "Mode AI (Gemini 1.5 Flash)" : "Mode Lokal (Offline OCR)";
     if (DOM.scanStatusMode) DOM.scanStatusMode.textContent = modeText;
 
     try {
@@ -668,19 +671,31 @@
       let scanResult = null;
       let usedMode = "AI";
 
-      if (isOnline && apiKey) {
+      if (canAttemptAI) {
         try {
           if (API.isConfigured()) {
             try {
+              // Kirim ke backend Apps Script (bisa menggunakan GEMINI_API_KEY terpusat di server)
               const res = await API.scanReceipt(compressedDataUrl, apiKey);
               if (res && res.data) {
                 scanResult = res.data;
               }
             } catch (backendErr) {
-              console.warn("Apps Script scanReceipt gagal, mencoba direct Gemini REST...", backendErr);
-              scanResult = await directGeminiVisionScan(compressedDataUrl, apiKey);
+              const errMsg = backendErr.message || String(backendErr);
+              if (errMsg.includes("API Key Gemini belum disetel")) {
+                if (apiKey) {
+                  scanResult = await directGeminiVisionScan(compressedDataUrl, apiKey);
+                } else {
+                  throw new Error("API Key Gemini belum disetel di Google Apps Script atau menu Pengaturan.");
+                }
+              } else if (apiKey) {
+                console.warn("Apps Script scanReceipt gagal, mencoba direct Gemini REST...", backendErr);
+                scanResult = await directGeminiVisionScan(compressedDataUrl, apiKey);
+              } else {
+                throw backendErr;
+              }
             }
-          } else {
+          } else if (apiKey) {
             scanResult = await directGeminiVisionScan(compressedDataUrl, apiKey);
           }
         } catch (aiErr) {
@@ -688,6 +703,11 @@
           usedMode = "Lokal";
           if (DOM.scanStatusMode) DOM.scanStatusMode.textContent = "Beralih ke Mode Lokal...";
           scanResult = await parseReceiptLocally(compressedDataUrl);
+
+          const errText = aiErr.message || String(aiErr);
+          if (errText.includes("API Key Gemini belum disetel")) {
+            showToast("Mode AI butuh API Key. Silakan masukkan di Google Apps Script atau menu Pengaturan.", "warning");
+          }
         }
       } else {
         usedMode = "Lokal";

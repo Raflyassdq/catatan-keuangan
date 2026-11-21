@@ -5,6 +5,7 @@
 
 const CONFIG = {
   SECRET_TOKEN: "SECRET_KEUANGAN_2026",
+  GEMINI_API_KEY: "", // Masukkan Gemini API Key di sini atau di Script Properties
   SHEET_INCOME: "Pemasukan",
   SHEET_EXPENSE: "Pengeluaran",
   SHEET_TRANSFER: "Transfer",
@@ -480,11 +481,13 @@ function doPost(e) {
  */
 function handleReceiptScan(payload) {
   try {
-    const apiKey = (payload.apiKey || "").trim() || PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+    const apiKey = (payload.apiKey || "").trim() ||
+      (CONFIG.GEMINI_API_KEY || "").trim() ||
+      PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
     if (!apiKey) {
       return createJsonResponse({
         status: "error",
-        message: "API Key Gemini belum disetel. Masukkan API Key di menu Pengaturan atau gunakan mode offline."
+        message: "API Key Gemini belum disetel di Google Apps Script atau menu Pengaturan."
       });
     }
 
@@ -507,12 +510,14 @@ function handleReceiptScan(payload) {
 
     const geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + encodeURIComponent(apiKey);
 
-    const promptText = "Kamu adalah asisten keuangan pribadi cerdas. Analisis foto struk/nota pembayaran ini dengan sangat teliti. Ekstrak informasi transaksi belanja:\n" +
-      "1. amount: Total pembayaran akhir (Grand Total / Total Bayar) yang sebenarnya dibayarkan oleh pembeli, dalam bentuk ANGKA bulat/desimal murni tanpa simbol 'Rp', tanda titik ribuan, atau koma (contoh: 45000). Jangan ambil subtotal, diskon, atau jumlah uang tunai yang diserahkan.\n" +
-      "2. date: Tanggal transaksi dalam format standar YYYY-MM-DD. Jika tahun tidak tertera, gunakan tahun berjalan. Jika tanggal tidak dapat dibaca, isi string kosong \"\".\n" +
-      "3. merchant: Nama toko, warung, restoran, atau merchant (contoh: \"Indomaret\", \"SPBU Pertamina\", \"Kopi Kenangan\"). Jika tidak tertera, isi string kosong \"\".\n" +
+    const promptText = "Kamu adalah asisten keuangan pribadi cerdas. Analisis foto struk atau nota pembayaran belanja ini dengan sangat teliti. " +
+      "Foto ini bisa berupa struk kasir cetak komputer MAUPUN NOTA KONTAN MANUAL TULISAN TANGAN dengan tabel barang dan coretan pena/pensil.\n\n" +
+      "Ekstrak data transaksi dalam format JSON:\n" +
+      "1. amount: Total pembayaran akhir (Grand Total / Total Bayar / Jumlah Rp di baris total bawah) yang sebenarnya dibayarkan oleh pembeli, dalam bentuk ANGKA bulat murni tanpa simbol 'Rp', titik ribuan, atau koma (contoh: jika tertulis 'Jumlah Rp. 55.000', isi angka 55000). Jangan ambil subtotal atau harga satuan per baris jika ada total akhir.\n" +
+      "2. date: Tanggal transaksi dalam format YYYY-MM-DD. Jika tahun tidak tertulis, gunakan tahun berjalan. Jika tanggal sama sekali tidak ada, isi string kosong \"\".\n" +
+      "3. merchant: Nama toko, warung, atau judul nota jika ada. Jika tidak ada nama toko, buat ringkasan toko/penjual yang wajar atau isi string kosong \"\".\n" +
       "4. category: Rekomendasi kategori pengeluaran yang paling relevan (pilihan: \"Makan & Minum\", \"Transportasi\", \"Belanja Kebutuhan Rumah\", \"Hiburan & Hobi\", \"Kesehatan\", \"Pakaian & Penampilan\", \"Pendidikan\", \"Skincare & Kosmetik\").\n" +
-      "5. note: Ringkasan singkat transaksi (contoh: \"Indomaret - Belanja snack & sabun\").\n\n" +
+      "5. note: Ringkasan singkat transaksi atau daftar nama barang yang dibeli (contoh: \"Roti Sobek, Rinso, Tepung\").\n\n" +
       "Jawab HANYA dalam format JSON valid tanpa tanda backtick atau markdown: {\"amount\": 0, \"date\": \"\", \"merchant\": \"\", \"category\": \"\", \"note\": \"\"}";
 
     const requestBody = {
